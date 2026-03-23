@@ -79,7 +79,7 @@ func queryColumns(ctx context.Context, db *sql.DB, d fraggle.Dialect, tableName 
 	var query string
 	switch d.Engine() {
 	case fraggle.SQLite:
-		query = `SELECT name, type, CASE WHEN "notnull" = 1 THEN 'NO' ELSE 'YES' END AS nullable, COALESCE(dflt_value, '') AS dflt FROM pragma_table_info(?)`
+		query = `SELECT name, type, CASE WHEN "notnull" = 1 OR pk = 1 THEN 'NO' ELSE 'YES' END AS nullable, COALESCE(dflt_value, '') AS dflt FROM pragma_table_info(?)`
 	case fraggle.Postgres:
 		query = `SELECT column_name, UPPER(data_type), is_nullable, COALESCE(column_default, '') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`
 	case fraggle.MSSQL:
