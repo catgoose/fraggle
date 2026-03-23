@@ -179,6 +179,14 @@ func TestMSSQLDialect(t *testing.T) {
 		assert.Contains(t, d.TableColumnsQuery(), "INFORMATION_SCHEMA.COLUMNS")
 		assert.Contains(t, d.TableColumnsQuery(), "TABLE_NAME = ?")
 	})
+
+	t.Run("InsertOrIgnore", func(t *testing.T) {
+		stmt := d.InsertOrIgnore("Users", "Name, Email", "'Alice', 'alice@test.com'")
+		assert.Contains(t, stmt, "BEGIN TRY")
+		assert.Contains(t, stmt, "INSERT INTO Users")
+		assert.Contains(t, stmt, "'Alice'")
+		assert.Contains(t, stmt, "END CATCH")
+	})
 }
 
 func TestSQLiteDialect(t *testing.T) {
@@ -257,6 +265,11 @@ func TestSQLiteDialect(t *testing.T) {
 		assert.Contains(t, d.TableExistsQuery(), "sqlite_master")
 		assert.Contains(t, d.TableExistsQuery(), "name=?")
 		assert.Contains(t, d.TableColumnsQuery(), "pragma_table_info(?)")
+	})
+
+	t.Run("InsertOrIgnore", func(t *testing.T) {
+		stmt := d.InsertOrIgnore("Users", "Name, Email", "'Alice', 'alice@test.com'")
+		assert.Equal(t, "INSERT OR IGNORE INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com')", stmt)
 	})
 }
 
@@ -342,6 +355,11 @@ func TestPostgresDialect(t *testing.T) {
 		assert.Contains(t, cq, "table_schema = 'public'")
 		assert.Contains(t, cq, "$1")
 		assert.Contains(t, cq, "ORDER BY ordinal_position")
+	})
+
+	t.Run("InsertOrIgnore", func(t *testing.T) {
+		stmt := d.InsertOrIgnore("Users", "Name, Email", "'Alice', 'alice@test.com'")
+		assert.Equal(t, "INSERT INTO Users (Name, Email) VALUES ('Alice', 'alice@test.com') ON CONFLICT DO NOTHING", stmt)
 	})
 }
 

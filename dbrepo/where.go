@@ -3,6 +3,7 @@ package dbrepo
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -55,7 +56,13 @@ func (w *WhereBuilder) OrIf(ok bool, condition string, args ...any) *WhereBuilde
 	return w.Or(condition, args...)
 }
 
+// validIdentifier matches safe SQL column names: letters, digits, underscores, and dots
+// (for qualified names like "t.Name"). Must start with a letter or underscore.
+var validIdentifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
+
 // Search adds a LIKE search condition across the given fields.
+// Field names are validated to prevent SQL injection — only alphanumeric characters,
+// underscores, and dots (for qualified names) are allowed.
 func (w *WhereBuilder) Search(search string, fields ...string) *WhereBuilder {
 	if search == "" || len(fields) == 0 {
 		return w
@@ -63,7 +70,13 @@ func (w *WhereBuilder) Search(search string, fields ...string) *WhereBuilder {
 	pattern := "%" + search + "%"
 	var conditions []string
 	for _, field := range fields {
+		if !validIdentifier.MatchString(field) {
+			continue
+		}
 		conditions = append(conditions, fmt.Sprintf("%s LIKE @SearchPattern", field))
+	}
+	if len(conditions) == 0 {
+		return w
 	}
 	w.And("("+strings.Join(conditions, " OR ")+")",
 		sql.Named("Search", search),

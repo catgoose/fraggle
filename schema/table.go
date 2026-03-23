@@ -149,10 +149,10 @@ func (t *TableDef) HasSeedData() bool {
 	return len(t.seedRows) > 0
 }
 
-// SeedSQL returns INSERT statements for all seed rows.
+// SeedSQL returns idempotent INSERT statements for all seed rows using the
+// dialect's InsertOrIgnore method.
 // Only columns present in the SeedRow are included — missing columns use their DB defaults.
-// Uses INSERT OR IGNORE to be idempotent.
-func (t *TableDef) SeedSQL() []string {
+func (t *TableDef) SeedSQL(d fraggle.Dialect) []string {
 	if len(t.seedRows) == 0 {
 		return nil
 	}
@@ -171,12 +171,11 @@ func (t *TableDef) SeedSQL() []string {
 		if len(cols) == 0 {
 			continue
 		}
-		stmt := fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES (%s)",
+		stmts = append(stmts, d.InsertOrIgnore(
 			t.Name,
 			strings.Join(cols, ", "),
 			strings.Join(vals, ", "),
-		)
-		stmts = append(stmts, stmt)
+		))
 	}
 	return stmts
 }

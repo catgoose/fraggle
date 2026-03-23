@@ -65,3 +65,7 @@ func (PostgresDialect) TableExistsQuery() string {
 func (PostgresDialect) TableColumnsQuery() string {
 	return "SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position"
 }
+
+func (PostgresDialect) InsertOrIgnore(table, columns, values string) string {
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT DO NOTHING", table, columns, values)
+}

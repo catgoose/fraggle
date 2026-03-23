@@ -163,10 +163,28 @@ func TestSeedData(t *testing.T) {
 	assert.True(t, table.HasSeedData())
 	assert.Len(t, table.SeedRows(), 2)
 
-	stmts := table.SeedSQL()
-	require.Len(t, stmts, 2)
-	assert.Contains(t, stmts[0], "INSERT OR IGNORE INTO Statuses")
-	assert.Contains(t, stmts[0], "'active'")
+	t.Run("sqlite", func(t *testing.T) {
+		stmts := table.SeedSQL(fraggle.SQLiteDialect{})
+		require.Len(t, stmts, 2)
+		assert.Contains(t, stmts[0], "INSERT OR IGNORE INTO Statuses")
+		assert.Contains(t, stmts[0], "'active'")
+	})
+
+	t.Run("postgres", func(t *testing.T) {
+		stmts := table.SeedSQL(fraggle.PostgresDialect{})
+		require.Len(t, stmts, 2)
+		assert.Contains(t, stmts[0], "INSERT INTO Statuses")
+		assert.Contains(t, stmts[0], "ON CONFLICT DO NOTHING")
+		assert.Contains(t, stmts[0], "'active'")
+	})
+
+	t.Run("mssql", func(t *testing.T) {
+		stmts := table.SeedSQL(fraggle.MSSQLDialect{})
+		require.Len(t, stmts, 2)
+		assert.Contains(t, stmts[0], "INSERT INTO Statuses")
+		assert.Contains(t, stmts[0], "BEGIN TRY")
+		assert.Contains(t, stmts[0], "'active'")
+	})
 }
 
 func TestColumnDDL(t *testing.T) {

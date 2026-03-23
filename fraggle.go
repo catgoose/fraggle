@@ -164,6 +164,13 @@ type Dialect interface {
 	// The query accepts a single positional parameter for the table name
 	// and returns rows with a "name" column.
 	TableColumnsQuery() string
+
+	// InsertOrIgnore returns an idempotent INSERT statement that silently
+	// skips rows that would violate a unique constraint.
+	//   SQLite:   "INSERT OR IGNORE INTO t (cols) VALUES (vals)"
+	//   Postgres: "INSERT INTO t (cols) VALUES (vals) ON CONFLICT DO NOTHING"
+	//   MSSQL:    wraps the insert in an IF NOT EXISTS check using the first column
+	InsertOrIgnore(table, columns, values string) string
 }
 
 // New returns a Dialect for the given engine.

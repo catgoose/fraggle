@@ -90,3 +90,10 @@ func (MSSQLDialect) TableExistsQuery() string {
 func (MSSQLDialect) TableColumnsQuery() string {
 	return "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
 }
+
+func (MSSQLDialect) InsertOrIgnore(table, columns, values string) string {
+	return fmt.Sprintf(
+		"BEGIN TRY INSERT INTO %s (%s) VALUES (%s) END TRY BEGIN CATCH IF ERROR_NUMBER() <> 2627 AND ERROR_NUMBER() <> 2601 THROW END CATCH",
+		table, columns, values,
+	)
+}

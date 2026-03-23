@@ -121,4 +121,22 @@ func TestWhereSearch(t *testing.T) {
 		w := NewWhere().Search("gobo")
 		assert.False(t, w.HasConditions())
 	})
+
+	t.Run("rejects_invalid_field_names", func(t *testing.T) {
+		w := NewWhere().Search("gobo", "Name; DROP TABLE users--", "Email")
+		// Only Email should survive validation
+		assert.Contains(t, w.String(), "Email LIKE @SearchPattern")
+		assert.NotContains(t, w.String(), "DROP TABLE")
+	})
+
+	t.Run("rejects_all_invalid_fields", func(t *testing.T) {
+		w := NewWhere().Search("gobo", "1bad", "'; DROP TABLE--")
+		assert.False(t, w.HasConditions())
+	})
+
+	t.Run("allows_qualified_names", func(t *testing.T) {
+		w := NewWhere().Search("gobo", "t.Name", "u.Email")
+		assert.Contains(t, w.String(), "t.Name LIKE @SearchPattern")
+		assert.Contains(t, w.String(), "u.Email LIKE @SearchPattern")
+	})
 }

@@ -67,3 +67,7 @@ func (SQLiteDialect) TableExistsQuery() string {
 func (SQLiteDialect) TableColumnsQuery() string {
 	return "SELECT name FROM pragma_table_info(?)"
 }
+
+func (SQLiteDialect) InsertOrIgnore(table, columns, values string) string {
+	return fmt.Sprintf("INSERT OR IGNORE INTO %s (%s) VALUES (%s)", table, columns, values)
+}
