@@ -1,0 +1,163 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Install gomarkdoc
+        run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+
+      - name: Build site
+        run: |
+          mkdir -p _site/api
+
+          # ── Landing page from README ──────────────────────────────────────
+          cat > _site/index.html <<'HEADER'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Fraggle — Multi-Dialect SQL Fragments for Go</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-light.min.css">
+            <style>
+              body {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 2rem 1rem;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+              }
+              .markdown-body { font-size: 16px; }
+              nav { margin-bottom: 2rem; padding: 1rem 0; border-bottom: 1px solid #d0d7de; }
+              nav a { margin-right: 1.5rem; text-decoration: none; font-weight: 600; }
+            </style>
+          </head>
+          <body>
+          <nav>
+            <a href="./">Home</a>
+            <a href="./api/">API Reference</a>
+            <a href="https://pkg.go.dev/github.com/catgoose/fraggle">pkg.go.dev</a>
+            <a href="https://github.com/catgoose/fraggle">GitHub</a>
+          </nav>
+          <article class="markdown-body">
+          HEADER
+
+          # Convert README to HTML
+          go install github.com/gomarkdown/mdtohtml@latest
+          mdtohtml README.md >> _site/index.html
+
+          cat >> _site/index.html <<'FOOTER'
+          </article>
+          </body>
+          </html>
+          FOOTER
+
+          # ── API reference docs ────────────────────────────────────────────
+          nav_header='<nav style="margin-bottom:2rem;padding:1rem 0;border-bottom:1px solid #d0d7de">
+            <a href="../" style="margin-right:1.5rem;text-decoration:none;font-weight:600">Home</a>
+            <a href="./" style="margin-right:1.5rem;text-decoration:none;font-weight:600">API Reference</a>
+            <a href="https://pkg.go.dev/github.com/catgoose/fraggle" style="margin-right:1.5rem;text-decoration:none;font-weight:600">pkg.go.dev</a>
+            <a href="https://github.com/catgoose/fraggle" style="text-decoration:none;font-weight:600">GitHub</a>
+          </nav>'
+
+          # Generate markdown for each package
+          gomarkdoc --output _site/api/fraggle.md ./...
+          gomarkdoc --output _site/api/schema.md ./schema/...
+          gomarkdoc --output _site/api/dbrepo.md ./dbrepo/...
+
+          # Build API index page
+          cat > _site/api/index.html <<EOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Fraggle API Reference</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-light.min.css">
+            <style>
+              body { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+              .markdown-body { font-size: 16px; }
+            </style>
+          </head>
+          <body>
+          ${nav_header}
+          <article class="markdown-body">
+          <h1>API Reference</h1>
+          <h2>Packages</h2>
+          <ul>
+            <li><a href="fraggle.html"><code>fraggle</code></a> — Core dialect interface and engine abstraction</li>
+            <li><a href="schema.html"><code>fraggle/schema</code></a> — Declarative table definitions with traits</li>
+            <li><a href="dbrepo.html"><code>fraggle/dbrepo</code></a> — Query builders and mutation helpers</li>
+          </ul>
+          </article>
+          </body>
+          </html>
+          EOF
+
+          # Convert each API doc from markdown to HTML page
+          for pkg in fraggle schema dbrepo; do
+            cat > "_site/api/${pkg}.html" <<PKGHEAD
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>fraggle/${pkg} — API Reference</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown-light.min.css">
+            <style>
+              body { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+              .markdown-body { font-size: 16px; }
+            </style>
+          </head>
+          <body>
+          ${nav_header}
+          <article class="markdown-body">
+          PKGHEAD
+
+            mdtohtml "_site/api/${pkg}.md" >> "_site/api/${pkg}.html"
+
+            cat >> "_site/api/${pkg}.html" <<'PKGFOOT'
+          </article>
+          </body>
+          </html>
+          PKGFOOT
+
+            rm "_site/api/${pkg}.md"
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

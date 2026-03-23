@@ -1,0 +1,159 @@
+package fraggle
+
+import (
+	"context"
+	"database/sql"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// dialectIntegrationTest runs the same DDL/DML lifecycle against any dialect+db.
+// It verifies that all dialect fragments produce valid SQL for the target engine.
+func dialectIntegrationTest(t *testing.T, db *sql.DB, d Dialect) {
+	t.Helper()
+	ctx := context.Background()
+
+	t.Run("CreateTable", func(t *testing.T) {
+		body := "id " + d.AutoIncrement() +
+			", name " + d.VarcharType(255) + " NOT NULL" +
+			", bio " + d.TextType() +
+			", active " + d.BoolType() + " DEFAULT 1" +
+			", score " + d.IntType() + " DEFAULT 0" +
+			", created_at " + d.TimestampType()
+		createSQL := d.CreateTableIfNotExists("fraggle_test", body)
+		_, err := db.ExecContext(ctx, createSQL)
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateIndex", func(t *testing.T) {
+		indexSQL := d.CreateIndexIfNotExists("idx_fraggle_test_name", "fraggle_test", "name")
+		_, err := db.ExecContext(ctx, indexSQL)
+		require.NoError(t, err)
+
+		// Creating the same index again should not error (IF NOT EXISTS)
+		_, err = db.ExecContext(ctx, indexSQL)
+		require.NoError(t, err)
+	})
+
+	t.Run("TableExists", func(t *testing.T) {
+		var result interface{}
+		err := db.QueryRowContext(ctx, d.TableExistsQuery(), "fraggle_test").Scan(&result)
+		require.NoError(t, err, "table fraggle_test should exist")
+	})
+
+	t.Run("TableColumns", func(t *testing.T) {
+		rows, err := db.QueryContext(ctx, d.TableColumnsQuery(), "fraggle_test")
+		require.NoError(t, err)
+		defer func() { _ = rows.Close() }()
+
+		var columns []string
+		for rows.Next() {
+			var col string
+			require.NoError(t, rows.Scan(&col))
+			columns = append(columns, col)
+		}
+		require.NoError(t, rows.Err())
+		assert.Contains(t, columns, "id")
+		assert.Contains(t, columns, "name")
+		assert.Contains(t, columns, "bio")
+		assert.Contains(t, columns, "active")
+		assert.Contains(t, columns, "score")
+		assert.Contains(t, columns, "created_at")
+	})
+
+	t.Run("InsertAndQuery", func(t *testing.T) {
+		insertSQL := "INSERT INTO fraggle_test (name, bio, active, score) VALUES (" +
+			d.Placeholder(1) + ", " + d.Placeholder(2) + ", " +
+			d.Placeholder(3) + ", " + d.Placeholder(4) + ")"
+		_, err := db.ExecContext(ctx, insertSQL, "Gobo", "A brave Fraggle", 1, 42)
+		require.NoError(t, err)
+
+		_, err = db.ExecContext(ctx, insertSQL, "Red", "An athletic Fraggle", 1, 99)
+		require.NoError(t, err)
+
+		var count int
+		err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM fraggle_test").Scan(&count)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("Now", func(t *testing.T) {
+		// Verify Now() is valid SQL for this engine
+		var ts interface{}
+		err := db.QueryRowContext(ctx, "SELECT "+d.Now()).Scan(&ts)
+		require.NoError(t, err)
+		assert.NotNil(t, ts)
+	})
+
+	t.Run("CreateTableIdempotent", func(t *testing.T) {
+		// Running CreateTableIfNotExists again should not error
+		body := "id " + d.AutoIncrement() + ", name " + d.VarcharType(255)
+		createSQL := d.CreateTableIfNotExists("fraggle_test", body)
+		_, err := db.ExecContext(ctx, createSQL)
+		require.NoError(t, err)
+	})
+
+	t.Run("DropTable", func(t *testing.T) {
+		dropSQL := d.DropTableIfExists("fraggle_test")
+		_, err := db.ExecContext(ctx, dropSQL)
+		require.NoError(t, err)
+
+		// Table should be gone
+		var result interface{}
+		err = db.QueryRowContext(ctx, d.TableExistsQuery(), "fraggle_test").Scan(&result)
+		assert.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("DropTableIdempotent", func(t *testing.T) {
+		// Dropping again should not error
+		dropSQL := d.DropTableIfExists("fraggle_test")
+		_, err := db.ExecContext(ctx, dropSQL)
+		require.NoError(t, err)
+	})
+}
+
+func TestIntegrationSQLite(t *testing.T) {
+	ctx := context.Background()
+	db, d, err := OpenSQLite(ctx, ":memory:")
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	dialectIntegrationTest(t, db, d)
+}
+
+func TestIntegrationPostgres(t *testing.T) {
+	dsn := os.Getenv("FRAGGLE_POSTGRES_URL")
+	if dsn == "" {
+		t.Skip("FRAGGLE_POSTGRES_URL not set")
+	}
+
+	ctx := context.Background()
+	db, d, err := OpenURL(ctx, dsn)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Clean up in case a previous run failed mid-test
+	_, _ = db.ExecContext(ctx, d.DropTableIfExists("fraggle_test"))
+
+	dialectIntegrationTest(t, db, d)
+}
+
+func TestIntegrationMSSQL(t *testing.T) {
+	dsn := os.Getenv("FRAGGLE_MSSQL_URL")
+	if dsn == "" {
+		t.Skip("FRAGGLE_MSSQL_URL not set")
+	}
+
+	ctx := context.Background()
+	db, d, err := OpenURL(ctx, dsn)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	// Clean up in case a previous run failed mid-test
+	_, _ = db.ExecContext(ctx, d.DropTableIfExists("fraggle_test"))
+
+	dialectIntegrationTest(t, db, d)
+}

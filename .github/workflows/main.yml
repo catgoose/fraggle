@@ -1,0 +1,203 @@
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Stage 1: Update dependencies and commit ────────────────────────────────
+  update-deps:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.result.outputs.sha }}
+      deps-changed: ${{ steps.check-changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Save go.mod before update
+        run: cp go.mod /tmp/go.mod.bak
+
+      - name: Update dependencies
+        run: |
+          go get -u ./...
+          go mod tidy
+          go mod edit -go=$(go version | sed -n 's/.*go\([0-9.]*\).*/\1/p')
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          git add go.mod go.sum
+          if git diff --staged --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: steps.check-changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update Go dependencies and Go version [skip ci]" \
+            --author="${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>"
+          git pull --rebase origin main
+          git push origin main
+
+      - name: Output current SHA
+        id: result
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Notify on failure
+        if: failure() && steps.check-changes.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Auto-update workflow failed',
+              body: 'Failed to apply dependency/Go version updates. Please resolve manually.'
+            })
+
+  # ── Stage 2: Lint and test ─────────────────────────────────────────────────
+  test:
+    needs: [update-deps]
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: fraggle
+          POSTGRES_PASSWORD: fraggle
+          POSTGRES_DB: fraggle_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fraggle"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: Fraggle#123
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P 'Fraggle#123' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P 'Fraggle#123' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      FRAGGLE_POSTGRES_URL: postgres://fraggle:fraggle@localhost:5432/fraggle_test?sslmode=disable
+      FRAGGLE_MSSQL_URL: sqlserver://SA:Fraggle%23123@localhost:1433?database=master
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-deps.outputs.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Test
+        run: make ci
+
+  # ── Stage 3: Release ───────────────────────────────────────────────────────
+  release:
+    needs: [update-deps, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-deps.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          latest_tag=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+          if [ -z "$latest_tag" ]; then
+            latest_tag="0.0.0"
+          fi
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
+      - name: Bump patch version
+        id: bump_version
+        run: |
+          latest="${{ steps.get_tag.outputs.latest_tag }}"
+          IFS='.' read -r major minor patch <<<"$latest"
+          if [ -z "$major" ]; then major=0; fi
+          if [ -z "$minor" ]; then minor=0; fi
+          if [ -z "$patch" ]; then patch=0; fi
+          patch=$((patch+1))
+          new_tag="v$major.$minor.$patch"
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: |
+          echo "## Changes" >> release_notes.md
+          prev_tag="v${{ steps.get_tag.outputs.latest_tag }}"
+          if git rev-parse "$prev_tag" >/dev/null 2>&1; then
+            git log "$prev_tag"..HEAD --pretty=format:"- %s" | grep -v "\[skip ci\]" >> release_notes.md || true
+          else
+            git log --pretty=format:"- %s" | grep -v "\[skip ci\]" >> release_notes.md || true
+          fi
+          echo "" >> release_notes.md
+          echo "Go version: $(grep '^go ' go.mod | awk '{print $2}')" >> release_notes.md
+
+      - name: Create tag
+        run: |
+          git tag ${{ steps.bump_version.outputs.new_tag }}
+          git push origin ${{ steps.bump_version.outputs.new_tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          body_path: release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
