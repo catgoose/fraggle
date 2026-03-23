@@ -104,6 +104,63 @@ func TestWhereTraitFilters(t *testing.T) {
 	})
 }
 
+func TestWhereTraitFiltersCustomColumns(t *testing.T) {
+	t.Run("not_deleted_snake_case", func(t *testing.T) {
+		w := NewWhere().NotDeleted("deleted_at")
+		assert.Equal(t, "WHERE deleted_at IS NULL", w.String())
+	})
+
+	t.Run("not_expired_snake_case", func(t *testing.T) {
+		w := NewWhere().NotExpired("expires_at")
+		assert.Contains(t, w.String(), "expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP")
+	})
+
+	t.Run("has_status_snake_case", func(t *testing.T) {
+		w := NewWhere().HasStatus("active", "status")
+		assert.Contains(t, w.String(), "status = @Status")
+	})
+
+	t.Run("not_archived_snake_case", func(t *testing.T) {
+		w := NewWhere().NotArchived("archived_at")
+		assert.Equal(t, "WHERE archived_at IS NULL", w.String())
+	})
+
+	t.Run("has_version_snake_case", func(t *testing.T) {
+		w := NewWhere().HasVersion(3, "version")
+		assert.Contains(t, w.String(), "version = @Version")
+	})
+
+	t.Run("is_root_snake_case", func(t *testing.T) {
+		w := NewWhere().IsRoot("parent_id")
+		assert.Equal(t, "WHERE parent_id IS NULL", w.String())
+	})
+
+	t.Run("has_parent_snake_case", func(t *testing.T) {
+		w := NewWhere().HasParent(42, "parent_id")
+		assert.Contains(t, w.String(), "parent_id = @ParentID")
+	})
+
+	t.Run("not_replaced_snake_case", func(t *testing.T) {
+		w := NewWhere().NotReplaced("replaced_by_id")
+		assert.Equal(t, "WHERE replaced_by_id IS NULL", w.String())
+	})
+
+	t.Run("replaced_by_snake_case", func(t *testing.T) {
+		w := NewWhere().ReplacedBy(100, "replaced_by_id")
+		assert.Contains(t, w.String(), "replaced_by_id = @ReplacedByID")
+	})
+
+	t.Run("composed_snake_case", func(t *testing.T) {
+		w := NewWhere().
+			NotDeleted("deleted_at").
+			NotArchived("archived_at").
+			HasStatus("active", "status")
+		assert.Contains(t, w.String(), "deleted_at IS NULL")
+		assert.Contains(t, w.String(), "archived_at IS NULL")
+		assert.Contains(t, w.String(), "status = @Status")
+	})
+}
+
 func TestWhereSearch(t *testing.T) {
 	t.Run("with_search", func(t *testing.T) {
 		w := NewWhere().Search("gobo", "Name", "Email")

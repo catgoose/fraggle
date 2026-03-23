@@ -3,7 +3,10 @@
 // while keeping SQL visible and explicit.
 package fraggle
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Engine identifies a database engine.
 type Engine string
@@ -171,6 +174,15 @@ type Dialect interface {
 	//   Postgres: "INSERT INTO t (cols) VALUES (vals) ON CONFLICT DO NOTHING"
 	//   MSSQL:    wraps the insert in an IF NOT EXISTS check using the first column
 	InsertOrIgnore(table, columns, values string) string
+}
+
+// QuoteColumns splits a comma-separated column list and quotes each identifier.
+func QuoteColumns(d Dialect, columns string) string {
+	parts := strings.Split(columns, ",")
+	for i, p := range parts {
+		parts[i] = d.QuoteIdentifier(strings.TrimSpace(p))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // New returns a Dialect for the given engine.
