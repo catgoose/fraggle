@@ -21,10 +21,14 @@ func dialectIntegrationTest(t *testing.T, db *sql.DB, d Dialect) {
 	ctx := context.Background()
 
 	t.Run("CreateTable", func(t *testing.T) {
+		boolDefault := "1"
+		if d.Engine() == Postgres {
+			boolDefault = "TRUE"
+		}
 		body := "id " + d.AutoIncrement() +
 			", name " + d.VarcharType(255) + " NOT NULL" +
 			", bio " + d.TextType() +
-			", active " + d.BoolType() + " DEFAULT 1" +
+			", active " + d.BoolType() + " DEFAULT " + boolDefault +
 			", score " + d.IntType() + " DEFAULT 0" +
 			", created_at " + d.TimestampType()
 		createSQL := d.CreateTableIfNotExists("fraggle_test", body)

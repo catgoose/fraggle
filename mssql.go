@@ -84,11 +84,11 @@ func (MSSQLDialect) LastInsertIDQuery() string { return "SELECT SCOPE_IDENTITY()
 func (MSSQLDialect) SupportsLastInsertID() bool { return false }
 
 func (MSSQLDialect) TableExistsQuery() string {
-	return "SELECT name FROM sys.objects WHERE object_id = OBJECT_ID(?) AND type = 'U'"
+	return "SELECT name FROM sys.objects WHERE object_id = OBJECT_ID(@p1) AND type = 'U'"
 }
 
 func (MSSQLDialect) TableColumnsQuery() string {
-	return "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
+	return "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @p1"
 }
 
 func (d MSSQLDialect) InsertOrIgnore(table, columns, values string) string {

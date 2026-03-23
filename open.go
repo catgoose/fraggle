@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,17 @@ import (
 //
 // Returns the raw *sql.DB and the matching Dialect for SQL generation.
 func OpenURL(ctx context.Context, dsn string) (*sql.DB, Dialect, error) {
+	// SQLite URLs need special handling — paths like ":memory:" aren't valid URL hosts.
+	for _, prefix := range []string{"sqlite://", "sqlite3://"} {
+		if strings.HasPrefix(dsn, prefix) {
+			path := strings.TrimPrefix(dsn, prefix)
+			if path == "" {
+				return nil, nil, fmt.Errorf("empty sqlite path in URL %q", dsn)
+			}
+			return openSQLiteFromURL(ctx, path)
+		}
+	}
+
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse database URL: %w", err)
@@ -35,8 +47,6 @@ func OpenURL(ctx context.Context, dsn string) (*sql.DB, Dialect, error) {
 	switch u.Scheme {
 	case "postgres", "postgresql":
 		engine = Postgres
-	case "sqlite", "sqlite3":
-		engine = SQLite
 	case "sqlserver", "mssql":
 		engine = MSSQL
 	default:
@@ -50,13 +60,6 @@ func OpenURL(ctx context.Context, dsn string) (*sql.DB, Dialect, error) {
 
 	driverName := string(engine)
 	connectStr := dsn
-	if engine == SQLite {
-		connectStr = u.Host + u.Path
-		if connectStr == "" {
-			connectStr = u.Opaque
-		}
-		driverName = "sqlite3"
-	}
 
 	db, err := sql.Open(driverName, connectStr)
 	if err != nil {
@@ -67,6 +70,21 @@ func OpenURL(ctx context.Context, dsn string) (*sql.DB, Dialect, error) {
 		return nil, nil, fmt.Errorf("ping %s: %w", engine, err)
 	}
 	return db, d, nil
+}
+
+// openSQLiteFromURL opens a SQLite database from a URL path (after stripping the scheme).
+// For :memory: and file paths, it opens a basic connection without the WAL/pool settings
+// that OpenSQLite applies — use OpenSQLite directly for production SQLite connections.
+func openSQLiteFromURL(ctx context.Context, path string) (*sql.DB, Dialect, error) {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, nil, fmt.Errorf("ping sqlite: %w", err)
+	}
+	return db, SQLiteDialect{}, nil
 }
 
 // OpenSQLite opens a SQLite database at the given path with standard settings:
