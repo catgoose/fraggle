@@ -24,7 +24,12 @@ var testTable = schema.NewTable("fraggle_schema_test").
 		schema.Col("Email", schema.TypeVarchar(255)).NotNull().Unique(),
 		schema.Col("Bio", schema.TypeText()),
 		schema.Col("Score", schema.TypeInt()).NotNull().Default("0"),
-		schema.Col("Active", schema.TypeBool()).NotNull().Default("1"),
+		schema.Col("Active", schema.TypeBool()).NotNull().DefaultFn(func(d fraggle.Dialect) string {
+			if d.Engine() == fraggle.Postgres {
+				return "TRUE"
+			}
+			return "1"
+		}),
 	).
 	WithTimestamps().
 	WithSoftDelete().

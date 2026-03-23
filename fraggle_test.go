@@ -175,9 +175,9 @@ func TestMSSQLDialect(t *testing.T) {
 
 	t.Run("SchemaQueries", func(t *testing.T) {
 		assert.Contains(t, d.TableExistsQuery(), "sys.objects")
-		assert.Contains(t, d.TableExistsQuery(), "OBJECT_ID(?)")
+		assert.Contains(t, d.TableExistsQuery(), "OBJECT_ID(@p1)")
 		assert.Contains(t, d.TableColumnsQuery(), "INFORMATION_SCHEMA.COLUMNS")
-		assert.Contains(t, d.TableColumnsQuery(), "TABLE_NAME = ?")
+		assert.Contains(t, d.TableColumnsQuery(), "TABLE_NAME = @p1")
 	})
 
 	t.Run("InsertOrIgnore", func(t *testing.T) {

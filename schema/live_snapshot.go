@@ -83,7 +83,7 @@ func queryColumns(ctx context.Context, db *sql.DB, d fraggle.Dialect, tableName 
 	case fraggle.Postgres:
 		query = `SELECT column_name, UPPER(data_type), is_nullable, COALESCE(column_default, '') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`
 	case fraggle.MSSQL:
-		query = `SELECT COLUMN_NAME, UPPER(DATA_TYPE), IS_NULLABLE, COALESCE(COLUMN_DEFAULT, '') FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? ORDER BY ORDINAL_POSITION`
+		query = `SELECT COLUMN_NAME, UPPER(DATA_TYPE), IS_NULLABLE, COALESCE(COLUMN_DEFAULT, '') FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @p1 ORDER BY ORDINAL_POSITION`
 	default:
 		return nil, fmt.Errorf("unsupported engine: %s", d.Engine())
 	}
@@ -118,7 +118,7 @@ func queryIndexes(ctx context.Context, db *sql.DB, d fraggle.Dialect, tableName 
 	case fraggle.Postgres:
 		query = `SELECT i.relname, pg_get_indexdef(ix.indexrelid) FROM pg_index ix JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_class i ON i.oid = ix.indexrelid WHERE t.relname = $1 AND NOT ix.indisprimary`
 	case fraggle.MSSQL:
-		query = `SELECT si.name, STUFF((SELECT ', ' + sc.name FROM sys.index_columns ic JOIN sys.columns sc ON sc.object_id = ic.object_id AND sc.column_id = ic.column_id WHERE ic.object_id = si.object_id AND ic.index_id = si.index_id FOR XML PATH('')), 1, 2, '') FROM sys.indexes si WHERE si.object_id = OBJECT_ID(?) AND si.is_primary_key = 0 AND si.name IS NOT NULL`
+		query = `SELECT si.name, STUFF((SELECT ', ' + sc.name FROM sys.index_columns ic JOIN sys.columns sc ON sc.object_id = ic.object_id AND sc.column_id = ic.column_id WHERE ic.object_id = si.object_id AND ic.index_id = si.index_id FOR XML PATH('')), 1, 2, '') FROM sys.indexes si WHERE si.object_id = OBJECT_ID(@p1) AND si.is_primary_key = 0 AND si.name IS NOT NULL`
 	default:
 		return nil, fmt.Errorf("unsupported engine: %s", d.Engine())
 	}
