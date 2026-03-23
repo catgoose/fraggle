@@ -55,7 +55,7 @@ func (t *TableDef) Snapshot(d fraggle.Dialect) TableSnapshot {
 		cs := ColumnSnapshot{
 			Name:       c.name,
 			Type:       c.typeFn(d),
-			NotNull:    c.notNull,
+			NotNull:    c.notNull || c.pk,
 			Unique:     c.unique,
 			PrimaryKey: c.pk,
 			AutoIncr:   c.autoIncr,
