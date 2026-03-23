@@ -5,9 +5,15 @@ import (
 	"time"
 )
 
-// GetNow returns the current time.
+// NowFunc is the function used to get the current time.
+// Override this in tests to freeze or control time:
+//
+//	dbrepo.NowFunc = func() time.Time { return fixedTime }
+var NowFunc = time.Now
+
+// GetNow returns the current time via NowFunc.
 func GetNow() time.Time {
-	return time.Now()
+	return NowFunc()
 }
 
 // SetCreateTimestamps sets CreatedAt and UpdatedAt to current time.

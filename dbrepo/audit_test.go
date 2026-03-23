@@ -129,3 +129,17 @@ func TestNilSafety(t *testing.T) {
 	SetUpdateAudit(nil, "")
 	SetDeleteAudit(nil, nil, "")
 }
+
+func TestNowFuncOverride(t *testing.T) {
+	fixed := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	original := NowFunc
+	NowFunc = func() time.Time { return fixed }
+	defer func() { NowFunc = original }()
+
+	assert.Equal(t, fixed, GetNow())
+
+	var created, updated time.Time
+	SetCreateTimestamps(&created, &updated)
+	assert.Equal(t, fixed, created)
+	assert.Equal(t, fixed, updated)
+}

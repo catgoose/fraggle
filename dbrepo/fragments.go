@@ -1,3 +1,17 @@
+// Package dbrepo provides composable SQL fragment helpers for building queries.
+//
+// Functions in this package use @Name placeholders (e.g., @ID, @Name) which rely on
+// database/sql's sql.Named() for driver-level parameter translation. This is distinct
+// from the fraggle.Dialect.Placeholder() method which returns engine-specific positional
+// syntax ($1, ?, @p1) for raw SQL composition.
+//
+// The @Name convention works because database/sql drivers translate sql.NamedArg values
+// into their native parameter syntax at execution time. This means dbrepo output is
+// dialect-agnostic — the same query string works across all engines when paired with
+// sql.Named() arguments.
+//
+// For identifier quoting, use the Q-suffixed variants (ColumnsQ, SetClauseQ, InsertIntoQ)
+// which accept a fraggle.Dialect and quote table/column names via QuoteIdentifier.
 package dbrepo
 
 import (
