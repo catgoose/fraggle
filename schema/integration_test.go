@@ -58,11 +58,8 @@ func schemaDriftTest(t *testing.T, db *sql.DB, d fraggle.Dialect) {
 	}()
 
 	t.Run("ValidateSchema", func(t *testing.T) {
-		errs := schema.ValidateSchema(ctx, db, d, testTable)
-		if errs != nil {
-			for _, e := range errs {
-				t.Errorf("schema validation error: %s", e.Error())
-			}
+		for _, e := range schema.ValidateSchema(ctx, db, d, testTable) {
+			t.Errorf("schema validation error: %s", e.Error())
 		}
 	})
 }
