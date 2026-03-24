@@ -49,6 +49,43 @@ func TestNewTable(t *testing.T) {
 	})
 }
 
+func TestColumnsFor(t *testing.T) {
+	table := NewTable("Users").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("Email", TypeVarchar(255)).NotNull().Unique(),
+			Col("Name", TypeString(255)),
+		).
+		WithTimestamps()
+
+	pg := fraggle.PostgresDialect{}
+	sq := fraggle.SQLiteDialect{}
+
+	t.Run("SelectColumnsFor_postgres", func(t *testing.T) {
+		cols := table.SelectColumnsFor(pg)
+		assert.Equal(t, []string{"id", "email", "name", "created_at", "updated_at"}, cols)
+	})
+
+	t.Run("SelectColumnsFor_sqlite", func(t *testing.T) {
+		cols := table.SelectColumnsFor(sq)
+		assert.Equal(t, []string{"ID", "Email", "Name", "CreatedAt", "UpdatedAt"}, cols)
+	})
+
+	t.Run("InsertColumnsFor_postgres", func(t *testing.T) {
+		cols := table.InsertColumnsFor(pg)
+		assert.NotContains(t, cols, "id")
+		assert.Contains(t, cols, "email")
+	})
+
+	t.Run("UpdateColumnsFor_postgres", func(t *testing.T) {
+		cols := table.UpdateColumnsFor(pg)
+		assert.NotContains(t, cols, "id")
+		assert.NotContains(t, cols, "created_at")
+		assert.Contains(t, cols, "email")
+		assert.Contains(t, cols, "updated_at")
+	})
+}
+
 func TestTableTraits(t *testing.T) {
 	table := NewTable("Tasks").
 		Columns(
@@ -118,9 +155,14 @@ func TestCreateIfNotExistsSQL(t *testing.T) {
 			stmts := table.CreateIfNotExistsSQL(d)
 			require.GreaterOrEqual(t, len(stmts), 2) // CREATE TABLE + CREATE INDEX
 
-			// CREATE TABLE statement
-			assert.Contains(t, stmts[0], "Users")
-			assert.Contains(t, stmts[0], "Name")
+			// CREATE TABLE statement — Postgres normalizes to snake_case
+			if d.Engine() == fraggle.Postgres {
+				assert.Contains(t, stmts[0], "users")
+				assert.Contains(t, stmts[0], "name")
+			} else {
+				assert.Contains(t, stmts[0], "Users")
+				assert.Contains(t, stmts[0], "Name")
+			}
 
 			// CREATE INDEX statement
 			assert.Contains(t, stmts[1], "idx_users_name")
@@ -173,7 +215,7 @@ func TestSeedData(t *testing.T) {
 	t.Run("postgres", func(t *testing.T) {
 		stmts := table.SeedSQL(fraggle.PostgresDialect{})
 		require.Len(t, stmts, 2)
-		assert.Contains(t, stmts[0], `INSERT INTO "Statuses"`)
+		assert.Contains(t, stmts[0], `INSERT INTO "statuses"`)
 		assert.Contains(t, stmts[0], "ON CONFLICT DO NOTHING")
 		assert.Contains(t, stmts[0], "'active'")
 	})
@@ -193,7 +235,7 @@ func TestColumnDDL(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
 		c := Col("Name", TypeVarchar(255))
 		ddl := c.ddl(d)
-		assert.Equal(t, `"Name" VARCHAR(255)`, ddl)
+		assert.Equal(t, `"name" VARCHAR(255)`, ddl)
 	})
 
 	t.Run("not_null_unique", func(t *testing.T) {
@@ -218,13 +260,31 @@ func TestColumnDDL(t *testing.T) {
 	t.Run("references", func(t *testing.T) {
 		c := Col("UserID", TypeInt()).References("Users", "ID")
 		ddl := c.ddl(d)
-		assert.Contains(t, ddl, `REFERENCES "Users"("ID")`)
+		assert.Contains(t, ddl, `REFERENCES "users"("id")`)
+	})
+
+	t.Run("references_on_delete", func(t *testing.T) {
+		c := Col("TaskID", TypeInt()).NotNull().References("Tasks", "ID").OnDelete("CASCADE")
+		ddl := c.ddl(d)
+		assert.Contains(t, ddl, `REFERENCES "tasks"("id") ON DELETE CASCADE`)
+	})
+
+	t.Run("references_on_update", func(t *testing.T) {
+		c := Col("TaskID", TypeInt()).References("Tasks", "ID").OnUpdate("SET NULL")
+		ddl := c.ddl(d)
+		assert.Contains(t, ddl, `REFERENCES "tasks"("id") ON UPDATE SET NULL`)
+	})
+
+	t.Run("references_on_delete_and_update", func(t *testing.T) {
+		c := Col("TaskID", TypeInt()).References("Tasks", "ID").OnDelete("CASCADE").OnUpdate("SET NULL")
+		ddl := c.ddl(d)
+		assert.Contains(t, ddl, `REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE SET NULL`)
 	})
 
 	t.Run("auto_increment", func(t *testing.T) {
 		c := AutoIncrCol("ID")
 		ddl := c.ddl(d)
-		assert.Contains(t, ddl, "ID")
+		assert.Contains(t, ddl, "id")
 		assert.Contains(t, ddl, "SERIAL PRIMARY KEY")
 	})
 }

@@ -309,6 +309,14 @@ func TestPostgresDialect(t *testing.T) {
 		assert.Equal(t, "JSONB", d.JSONType())
 	})
 
+	t.Run("NormalizeIdentifier", func(t *testing.T) {
+		assert.Equal(t, "users", d.NormalizeIdentifier("Users"))
+		assert.Equal(t, "created_at", d.NormalizeIdentifier("CreatedAt"))
+		assert.Equal(t, "user_id", d.NormalizeIdentifier("UserID"))
+		assert.Equal(t, "html_parser", d.NormalizeIdentifier("HTMLParser"))
+		assert.Equal(t, "already_snake", d.NormalizeIdentifier("already_snake"))
+	})
+
 	t.Run("QuoteIdentifier", func(t *testing.T) {
 		assert.Equal(t, `"Users"`, d.QuoteIdentifier("Users"))
 		assert.Equal(t, `"order"`, d.QuoteIdentifier("order"))
@@ -340,7 +348,7 @@ func TestPostgresDialect(t *testing.T) {
 	})
 
 	t.Run("CreateIndexIfNotExists", func(t *testing.T) {
-		assert.Equal(t, `CREATE INDEX IF NOT EXISTS "idx_users_mail" ON "Users"("Mail")`,
+		assert.Equal(t, `CREATE INDEX IF NOT EXISTS "idx_users_mail" ON "Users"("mail")`,
 			d.CreateIndexIfNotExists("idx_users_mail", "Users", "Mail"))
 	})
 

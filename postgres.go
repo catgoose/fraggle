@@ -30,6 +30,10 @@ func (PostgresDialect) ReturningClause(columns string) string {
 	return fmt.Sprintf("RETURNING %s", columns)
 }
 
+func (PostgresDialect) NormalizeIdentifier(name string) string {
+	return camelToSnake(name)
+}
+
 func (PostgresDialect) QuoteIdentifier(name string) string {
 	return `"` + name + `"`
 }

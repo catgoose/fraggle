@@ -20,7 +20,7 @@ type UniqueConstraint struct {
 func (uc UniqueConstraint) ddl(d fraggle.Dialect) string {
 	quoted := make([]string, len(uc.columns))
 	for i, col := range uc.columns {
-		quoted[i] = d.QuoteIdentifier(col)
+		quoted[i] = d.QuoteIdentifier(d.NormalizeIdentifier(col))
 	}
 	return fmt.Sprintf("UNIQUE (%s)", strings.Join(quoted, ", "))
 }
@@ -172,7 +172,7 @@ func (t *TableDef) SeedSQL(d fraggle.Dialect) []string {
 		var vals []string
 		for _, col := range insertCols {
 			if v, ok := row[col]; ok {
-				cols = append(cols, col)
+				cols = append(cols, d.NormalizeIdentifier(col))
 				vals = append(vals, v)
 			}
 		}
@@ -180,7 +180,7 @@ func (t *TableDef) SeedSQL(d fraggle.Dialect) []string {
 			continue
 		}
 		stmts = append(stmts, d.InsertOrIgnore(
-			t.Name,
+			d.NormalizeIdentifier(t.Name),
 			strings.Join(cols, ", "),
 			strings.Join(vals, ", "),
 		))
@@ -197,6 +197,15 @@ func (t *TableDef) SelectColumns() []string {
 	return names
 }
 
+// SelectColumnsFor returns all column names normalized for the given dialect.
+func (t *TableDef) SelectColumnsFor(d fraggle.Dialect) []string {
+	names := make([]string, len(t.cols))
+	for i, c := range t.cols {
+		names[i] = d.NormalizeIdentifier(c.name)
+	}
+	return names
+}
+
 // InsertColumns returns column names excluding auto-increment columns.
 func (t *TableDef) InsertColumns() []string {
 	var names []string
@@ -208,12 +217,35 @@ func (t *TableDef) InsertColumns() []string {
 	return names
 }
 
+// InsertColumnsFor returns column names excluding auto-increment columns,
+// normalized for the given dialect.
+func (t *TableDef) InsertColumnsFor(d fraggle.Dialect) []string {
+	var names []string
+	for _, c := range t.cols {
+		if !c.autoIncr {
+			names = append(names, d.NormalizeIdentifier(c.name))
+		}
+	}
+	return names
+}
+
 // UpdateColumns returns only mutable column names.
 func (t *TableDef) UpdateColumns() []string {
 	var names []string
 	for _, c := range t.cols {
 		if c.mutable {
 			names = append(names, c.name)
+		}
+	}
+	return names
+}
+
+// UpdateColumnsFor returns only mutable column names, normalized for the given dialect.
+func (t *TableDef) UpdateColumnsFor(d fraggle.Dialect) []string {
+	var names []string
+	for _, c := range t.cols {
+		if c.mutable {
+			names = append(names, d.NormalizeIdentifier(c.name))
 		}
 	}
 	return names
@@ -253,28 +285,30 @@ func (t *TableDef) columnBody(d fraggle.Dialect) string {
 
 // CreateSQL returns the CREATE TABLE statement followed by CREATE INDEX statements.
 func (t *TableDef) CreateSQL(d fraggle.Dialect) []string {
+	tableName := d.NormalizeIdentifier(t.Name)
 	create := fmt.Sprintf("\n\t\tCREATE TABLE %s (\n%s\n\t\t)",
-		d.QuoteIdentifier(t.Name), t.columnBody(d))
+		d.QuoteIdentifier(tableName), t.columnBody(d))
 
 	stmts := []string{create}
 	for _, idx := range t.indexes {
-		stmts = append(stmts, d.CreateIndexIfNotExists(idx.name, t.Name, idx.columns))
+		stmts = append(stmts, d.CreateIndexIfNotExists(idx.name, tableName, idx.columns))
 	}
 	return stmts
 }
 
 // CreateIfNotExistsSQL returns CREATE TABLE IF NOT EXISTS followed by CREATE INDEX IF NOT EXISTS statements.
 func (t *TableDef) CreateIfNotExistsSQL(d fraggle.Dialect) []string {
-	create := d.CreateTableIfNotExists(t.Name, t.columnBody(d))
+	tableName := d.NormalizeIdentifier(t.Name)
+	create := d.CreateTableIfNotExists(tableName, t.columnBody(d))
 
 	stmts := []string{create}
 	for _, idx := range t.indexes {
-		stmts = append(stmts, d.CreateIndexIfNotExists(idx.name, t.Name, idx.columns))
+		stmts = append(stmts, d.CreateIndexIfNotExists(idx.name, tableName, idx.columns))
 	}
 	return stmts
 }
 
 // DropSQL returns the DROP TABLE statement for the given dialect.
 func (t *TableDef) DropSQL(d fraggle.Dialect) string {
-	return d.DropTableIfExists(t.Name)
+	return d.DropTableIfExists(d.NormalizeIdentifier(t.Name))
 }

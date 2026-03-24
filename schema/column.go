@@ -88,6 +88,8 @@ type ColumnDef struct {
 	defaultFn  func(fraggle.Dialect) string
 	refTable   string
 	refColumn  string
+	onDelete   string
+	onUpdate   string
 }
 
 // Col creates a new column definition. By default columns are nullable and mutable.
@@ -134,6 +136,12 @@ func (c ColumnDef) References(table, column string) ColumnDef {
 	return c
 }
 
+// OnDelete sets the referential action for DELETE (e.g. "CASCADE", "SET NULL").
+func (c ColumnDef) OnDelete(action string) ColumnDef { c.onDelete = action; return c }
+
+// OnUpdate sets the referential action for UPDATE (e.g. "CASCADE", "SET NULL").
+func (c ColumnDef) OnUpdate(action string) ColumnDef { c.onUpdate = action; return c }
+
 // Name returns the column name.
 func (c ColumnDef) Name() string { return c.name }
 
@@ -141,7 +149,7 @@ func (c ColumnDef) Name() string { return c.name }
 func (c ColumnDef) ddl(d fraggle.Dialect) string {
 	var parts []string
 
-	parts = append(parts, d.QuoteIdentifier(c.name))
+	parts = append(parts, d.QuoteIdentifier(d.NormalizeIdentifier(c.name)))
 	parts = append(parts, c.typeFn(d))
 
 	if c.notNull {
@@ -158,8 +166,16 @@ func (c ColumnDef) ddl(d fraggle.Dialect) string {
 	}
 
 	if c.refTable != "" && c.refColumn != "" {
-		parts = append(parts, fmt.Sprintf("REFERENCES %s(%s)",
-			d.QuoteIdentifier(c.refTable), d.QuoteIdentifier(c.refColumn)))
+		ref := fmt.Sprintf("REFERENCES %s(%s)",
+			d.QuoteIdentifier(d.NormalizeIdentifier(c.refTable)),
+			d.QuoteIdentifier(d.NormalizeIdentifier(c.refColumn)))
+		if c.onDelete != "" {
+			ref += " ON DELETE " + c.onDelete
+		}
+		if c.onUpdate != "" {
+			ref += " ON UPDATE " + c.onUpdate
+		}
+		parts = append(parts, ref)
 	}
 
 	return strings.Join(parts, " ")

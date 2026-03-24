@@ -46,6 +46,7 @@ Each engine speaks its own dialect:
 | `Placeholder(1)` | `$1` | `?` | `@p1` |
 | `Pagination()` | `LIMIT @Limit OFFSET @Offset` | `LIMIT @Limit OFFSET @Offset` | `OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY` |
 | `BoolType()` | `BOOLEAN` | `INTEGER` | `BIT` |
+| `NormalizeIdentifier("CreatedAt")` | `created_at` | `CreatedAt` | `CreatedAt` |
 | `QuoteIdentifier("t")` | `"t"` | `"t"` | `[t]` |
 
 ### Column Type Methods
@@ -63,9 +64,25 @@ Each engine speaks its own dialect:
 | `UUIDType()` | `UUID` / `TEXT` / `UNIQUEIDENTIFIER` |
 | `JSONType()` | `JSONB` / `TEXT` / `NVARCHAR(MAX)` |
 
+### Identifier Normalization
+
+`NormalizeIdentifier` transforms identifiers to the engine's idiomatic form. For Postgres, PascalCase names are converted to snake_case. Other engines return names unchanged.
+
+```go
+pg := fraggle.PostgresDialect{}
+pg.NormalizeIdentifier("CreatedAt")  // "created_at"
+pg.NormalizeIdentifier("UserID")     // "user_id"
+pg.NormalizeIdentifier("HTMLParser") // "html_parser"
+
+sq := fraggle.SQLiteDialect{}
+sq.NormalizeIdentifier("CreatedAt")  // "CreatedAt" (unchanged)
+```
+
+All schema DDL methods apply normalization automatically — column names, table names, references, and index columns are all normalized for the target dialect.
+
 ### DDL Methods
 
-All DDL methods quote identifiers automatically using the engine's quoting style.
+All DDL methods quote and normalize identifiers automatically using the engine's style.
 
 ```go
 d.CreateTableIfNotExists("users", body)
@@ -108,7 +125,7 @@ var TasksTable = schema.NewTable("Tasks").
         schema.AutoIncrCol("ID"),
         schema.Col("Title", schema.TypeString(255)).NotNull(),
         schema.Col("Description", schema.TypeText()),
-        schema.Col("AssigneeID", schema.TypeInt()).References("Users", "ID"),
+        schema.Col("AssigneeID", schema.TypeInt()).References("Users", "ID").OnDelete("SET NULL"),
     ).
     WithStatus("draft").
     WithVersion().
@@ -124,6 +141,20 @@ for _, stmt := range stmts {
     db.Exec(stmt)
 }
 ```
+
+### Foreign Key References
+
+`References` defines a foreign key. Chain `OnDelete` and `OnUpdate` for referential actions:
+
+```go
+schema.Col("TaskID", schema.TypeInt()).NotNull().
+    References("Tasks", "ID").OnDelete("CASCADE")
+
+schema.Col("AssigneeID", schema.TypeInt()).
+    References("Users", "ID").OnDelete("SET NULL").OnUpdate("CASCADE")
+```
+
+Supported actions: `CASCADE`, `SET NULL`, `SET DEFAULT`, `RESTRICT`, `NO ACTION`.
 
 ### Traits
 
@@ -144,11 +175,7 @@ Traits add columns and behavior in one call. They're composable — use as many 
 | `WithArchive()` | `ArchivedAt` | Archival timestamp |
 | `WithExpiry()` | `ExpiresAt` | Expiration timestamp |
 
-Traits use PascalCase column names by default. For custom naming, use `Col()` directly:
-
-```go
-schema.Col("deleted_at", schema.TypeTimestamp()) // snake_case
-```
+Traits use PascalCase column names internally. For Postgres, these are automatically normalized to snake_case (`CreatedAt` becomes `created_at`). SQLite and MSSQL preserve the original casing.
 
 ### Table Factories
 
@@ -167,9 +194,17 @@ schema.NewQueueTable("Jobs", "Payload")                       // Job queue with 
 `TableDef` knows which columns to use in each context:
 
 ```go
-TasksTable.SelectColumns()  // All columns
+TasksTable.SelectColumns()  // All columns (raw names)
 TasksTable.InsertColumns()  // Excludes auto-increment
 TasksTable.UpdateColumns()  // Only mutable columns
+```
+
+Dialect-aware variants normalize names for the target engine:
+
+```go
+TasksTable.SelectColumnsFor(dialect)  // Postgres: ["id", "title", "created_at", ...]
+TasksTable.InsertColumnsFor(dialect)  // Postgres: ["title", "description", ...]
+TasksTable.UpdateColumnsFor(dialect)  // Postgres: ["title", "description", "updated_at", ...]
 ```
 
 ### Seed Data
