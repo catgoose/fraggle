@@ -273,26 +273,47 @@ fmt.Println("=== Live ===")
 fmt.Println(live.String())
 ```
 
-`LiveSnapshot` returns column names, types, nullability, defaults, and indexes. Use it in CI to catch schema drift:
+`LiveSnapshot` returns column names, types, nullability, defaults, and indexes.
+
+### Schema Validation
+
+`ValidateSchema` compares a declared table definition against the live database. It normalizes column and table names for the dialect automatically — PascalCase declarations match the snake_case columns that Postgres DDL creates.
+
+```go
+// Validate a single table
+errs := schema.ValidateSchema(ctx, db, dialect, TasksTable)
+for _, e := range errs {
+    log.Println(e) // "tasks.priority: column missing"
+}
+
+// Validate all tables at once
+errs := schema.ValidateAll(ctx, db, dialect, UsersTable, TasksTable, StatusTable)
+```
+
+Use it in CI to catch schema drift:
 
 ```go
 func TestSchemaDrift(t *testing.T) {
-    live, err := schema.LiveSnapshot(ctx, db, dialect, "Tasks")
-    require.NoError(t, err)
-    declared := TasksTable.Snapshot(dialect)
-
-    require.Equal(t, len(declared.Columns), len(live.Columns), "column count mismatch")
-    for i, dc := range declared.Columns {
-        assert.Equal(t, dc.Name, live.Columns[i].Name, "column name mismatch at position %d", i)
-        assert.Equal(t, dc.NotNull, !live.Columns[i].Nullable, "nullability mismatch for %s", dc.Name)
+    errs := schema.ValidateSchema(ctx, db, dialect, TasksTable)
+    if errs != nil {
+        for _, e := range errs {
+            t.Error(e)
+        }
     }
 }
+```
+
+For manual comparison, `LiveSnapshot` and `Snapshot` are still available:
+
+```go
+live, err := schema.LiveSnapshot(ctx, db, dialect, TasksTable.TableNameFor(dialect))
+declared := TasksTable.Snapshot(dialect)
 ```
 
 Multi-table variant:
 
 ```go
-snaps, err := schema.LiveSchemaSnapshot(ctx, db, dialect, "Users", "Tasks", "Statuses")
+snaps, err := schema.LiveSchemaSnapshot(ctx, db, dialect, "users", "tasks", "statuses")
 ```
 
 ## Composable SQL Fragments (`dbrepo`)

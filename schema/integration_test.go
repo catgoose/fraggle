@@ -8,7 +8,6 @@ import (
 
 	"github.com/catgoose/fraggle"
 	"github.com/catgoose/fraggle/schema"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/catgoose/fraggle/driver/mssql"
@@ -38,14 +37,16 @@ var testTable = schema.NewTable("fraggle_schema_test").
 		schema.Index("idx_fraggle_schema_test_name", "Name"),
 	)
 
-// schemaDriftTest creates a table from the declared schema, then reads it back
-// via LiveSnapshot and verifies that column names, count, and nullability match.
+// schemaDriftTest creates a table from the declared schema, then validates it
+// using ValidateSchema to verify column names, count, nullability, and indexes match.
 func schemaDriftTest(t *testing.T, db *sql.DB, d fraggle.Dialect) {
 	t.Helper()
 	ctx := context.Background()
 
+	tableName := testTable.TableNameFor(d)
+
 	// Clean up from any previous run
-	_, _ = db.ExecContext(ctx, d.DropTableIfExists("fraggle_schema_test"))
+	_, _ = db.ExecContext(ctx, d.DropTableIfExists(tableName))
 
 	// Create from declared schema
 	for _, stmt := range testTable.CreateIfNotExistsSQL(d) {
@@ -53,53 +54,15 @@ func schemaDriftTest(t *testing.T, db *sql.DB, d fraggle.Dialect) {
 		require.NoError(t, err, "create table: %s", stmt)
 	}
 	defer func() {
-		_, _ = db.ExecContext(ctx, d.DropTableIfExists("fraggle_schema_test"))
+		_, _ = db.ExecContext(ctx, d.DropTableIfExists(tableName))
 	}()
 
-	// Snapshot: declared vs live
-	declared := testTable.Snapshot(d)
-	live, err := schema.LiveSnapshot(ctx, db, d, "fraggle_schema_test")
-	require.NoError(t, err)
-
-	t.Run("ColumnCount", func(t *testing.T) {
-		assert.Equal(t, len(declared.Columns), len(live.Columns),
-			"declared %d columns, live %d columns\ndeclared: %s\nlive: %s",
-			len(declared.Columns), len(live.Columns),
-			testTable.SnapshotString(d), live.String())
-	})
-
-	t.Run("ColumnNames", func(t *testing.T) {
-		for i, dc := range declared.Columns {
-			if i >= len(live.Columns) {
-				t.Errorf("missing live column at position %d (declared: %s)", i, dc.Name)
-				continue
+	t.Run("ValidateSchema", func(t *testing.T) {
+		errs := schema.ValidateSchema(ctx, db, d, testTable)
+		if errs != nil {
+			for _, e := range errs {
+				t.Errorf("schema validation error: %s", e.Error())
 			}
-			assert.Equal(t, dc.Name, live.Columns[i].Name,
-				"column name mismatch at position %d", i)
-		}
-	})
-
-	t.Run("Nullability", func(t *testing.T) {
-		for i, dc := range declared.Columns {
-			if i >= len(live.Columns) {
-				continue
-			}
-			lc := live.Columns[i]
-			assert.Equal(t, dc.NotNull, !lc.Nullable,
-				"nullability mismatch for column %s: declared NOT NULL=%v, live nullable=%v",
-				dc.Name, dc.NotNull, lc.Nullable)
-		}
-	})
-
-	t.Run("Indexes", func(t *testing.T) {
-		// Verify declared indexes exist in the live schema
-		liveIndexNames := make(map[string]bool)
-		for _, idx := range live.Indexes {
-			liveIndexNames[idx.Name] = true
-		}
-		for _, idx := range declared.Indexes {
-			assert.True(t, liveIndexNames[idx.Name],
-				"declared index %q not found in live database", idx.Name)
 		}
 	})
 }
