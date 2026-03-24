@@ -40,6 +40,8 @@ func (MSSQLDialect) Placeholder(n int) string {
 
 func (MSSQLDialect) ReturningClause(_ string) string { return "" }
 
+func (MSSQLDialect) NormalizeIdentifier(name string) string { return name }
+
 func (d MSSQLDialect) QuoteIdentifier(name string) string {
 	// Escape any ] in the name by doubling it, then wrap in brackets
 	return "[" + strings.ReplaceAll(name, "]", "]]") + "]"

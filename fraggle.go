@@ -108,6 +108,11 @@ type Dialect interface {
 	//   Postgres: "RETURNING <columns>"
 	ReturningClause(columns string) string
 
+	// NormalizeIdentifier transforms a column or table name to the engine's
+	// idiomatic form. Postgres converts CamelCase to snake_case; other
+	// engines return the name unchanged.
+	NormalizeIdentifier(name string) string
+
 	// QuoteIdentifier quotes a SQL identifier (table name, column name, index name)
 	// using the engine-specific quoting style.
 	//   MSSQL:    [users]
@@ -180,11 +185,11 @@ type Dialect interface {
 	InsertOrIgnore(table, columns, values string) string
 }
 
-// QuoteColumns splits a comma-separated column list and quotes each identifier.
+// QuoteColumns splits a comma-separated column list, normalizes and quotes each identifier.
 func QuoteColumns(d Dialect, columns string) string {
 	parts := strings.Split(columns, ",")
 	for i, p := range parts {
-		parts[i] = d.QuoteIdentifier(strings.TrimSpace(p))
+		parts[i] = d.QuoteIdentifier(d.NormalizeIdentifier(strings.TrimSpace(p)))
 	}
 	return strings.Join(parts, ", ")
 }

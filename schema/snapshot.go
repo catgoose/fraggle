@@ -19,6 +19,8 @@ type ColumnSnapshot struct {
 	Default    string `json:"default,omitempty"`
 	RefTable   string `json:"references_table,omitempty"`
 	RefColumn  string `json:"references_column,omitempty"`
+	OnDelete   string `json:"on_delete,omitempty"`
+	OnUpdate   string `json:"on_update,omitempty"`
 }
 
 // IndexSnapshot describes a single index.
@@ -53,7 +55,7 @@ func (t *TableDef) Snapshot(d fraggle.Dialect) TableSnapshot {
 
 	for _, c := range t.cols {
 		cs := ColumnSnapshot{
-			Name:       c.name,
+			Name:       d.NormalizeIdentifier(c.name),
 			Type:       c.typeFn(d),
 			NotNull:    c.notNull || c.pk,
 			Unique:     c.unique,
@@ -67,8 +69,10 @@ func (t *TableDef) Snapshot(d fraggle.Dialect) TableSnapshot {
 			cs.Default = c.defaultVal
 		}
 		if c.refTable != "" {
-			cs.RefTable = c.refTable
-			cs.RefColumn = c.refColumn
+			cs.RefTable = d.NormalizeIdentifier(c.refTable)
+			cs.RefColumn = d.NormalizeIdentifier(c.refColumn)
+			cs.OnDelete = c.onDelete
+			cs.OnUpdate = c.onUpdate
 		}
 		snap.Columns = append(snap.Columns, cs)
 	}
@@ -81,7 +85,11 @@ func (t *TableDef) Snapshot(d fraggle.Dialect) TableSnapshot {
 	}
 
 	for _, uc := range t.uniqueConstraints {
-		snap.UniqueConstraints = append(snap.UniqueConstraints, uc.columns)
+		norm := make([]string, len(uc.columns))
+		for i, col := range uc.columns {
+			norm[i] = d.NormalizeIdentifier(col)
+		}
+		snap.UniqueConstraints = append(snap.UniqueConstraints, norm)
 	}
 
 	return snap
@@ -115,7 +123,14 @@ func (t *TableDef) SnapshotString(d fraggle.Dialect) string {
 			parts = append(parts, "DEFAULT "+c.Default)
 		}
 		if c.RefTable != "" {
-			parts = append(parts, fmt.Sprintf("REFERENCES %s(%s)", c.RefTable, c.RefColumn))
+			ref := fmt.Sprintf("REFERENCES %s(%s)", c.RefTable, c.RefColumn)
+			if c.OnDelete != "" {
+				ref += " ON DELETE " + c.OnDelete
+			}
+			if c.OnUpdate != "" {
+				ref += " ON UPDATE " + c.OnUpdate
+			}
+			parts = append(parts, ref)
 		}
 		if !c.Mutable {
 			parts = append(parts, "[immutable]")

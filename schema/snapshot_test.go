@@ -32,19 +32,19 @@ func TestSnapshot(t *testing.T) {
 		require.Len(t, snap.Columns, 7) // ID, Title, UserID, CreatedAt, UpdatedAt, DeletedAt, Version
 
 		id := snap.Columns[0]
-		assert.Equal(t, "ID", id.Name)
+		assert.Equal(t, "id", id.Name)
 		assert.True(t, id.PrimaryKey)
 		assert.True(t, id.AutoIncr)
 		assert.False(t, id.Mutable)
 
 		userID := snap.Columns[2]
-		assert.Equal(t, "UserID", userID.Name)
-		assert.Equal(t, "Users", userID.RefTable)
-		assert.Equal(t, "ID", userID.RefColumn)
+		assert.Equal(t, "user_id", userID.Name)
+		assert.Equal(t, "users", userID.RefTable)
+		assert.Equal(t, "id", userID.RefColumn)
 		assert.True(t, userID.NotNull)
 
 		createdAt := snap.Columns[3]
-		assert.Equal(t, "CreatedAt", createdAt.Name)
+		assert.Equal(t, "created_at", createdAt.Name)
 		assert.Equal(t, "NOW()", createdAt.Default)
 		assert.False(t, createdAt.Mutable)
 
@@ -89,9 +89,9 @@ func TestSnapshotString(t *testing.T) {
 	s := table.SnapshotString(fraggle.PostgresDialect{})
 
 	assert.Contains(t, s, "TABLE Users")
-	assert.Contains(t, s, "ID")
+	assert.Contains(t, s, "id")
 	assert.Contains(t, s, "PRIMARY KEY")
-	assert.Contains(t, s, "Email")
+	assert.Contains(t, s, "email")
 	assert.Contains(t, s, "NOT NULL")
 	assert.Contains(t, s, "UNIQUE")
 	assert.Contains(t, s, "INDEX idx_users_email ON (Email)")
@@ -115,7 +115,29 @@ func TestSnapshotUniqueConstraints(t *testing.T) {
 	snap := table.Snapshot(fraggle.PostgresDialect{})
 
 	require.Len(t, snap.UniqueConstraints, 1)
-	assert.Equal(t, []string{"UserID", "RoleID"}, snap.UniqueConstraints[0])
+	assert.Equal(t, []string{"user_id", "role_id"}, snap.UniqueConstraints[0])
+}
+
+func TestSnapshotOnDeleteOnUpdate(t *testing.T) {
+	table := NewTable("TaskReqs").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("TaskID", TypeInt()).NotNull().References("Tasks", "ID").OnDelete("CASCADE"),
+			Col("ReqID", TypeInt()).NotNull().References("Requirements", "ID").OnDelete("SET NULL").OnUpdate("CASCADE"),
+		)
+
+	snap := table.Snapshot(fraggle.PostgresDialect{})
+	require.Len(t, snap.Columns, 3)
+
+	taskID := snap.Columns[1]
+	assert.Equal(t, "task_id", taskID.Name)
+	assert.Equal(t, "CASCADE", taskID.OnDelete)
+	assert.Empty(t, taskID.OnUpdate)
+
+	reqID := snap.Columns[2]
+	assert.Equal(t, "req_id", reqID.Name)
+	assert.Equal(t, "SET NULL", reqID.OnDelete)
+	assert.Equal(t, "CASCADE", reqID.OnUpdate)
 }
 
 func TestSchemaSnapshot(t *testing.T) {

@@ -33,6 +33,8 @@ func (SQLiteDialect) ReturningClause(columns string) string {
 	return fmt.Sprintf("RETURNING %s", columns)
 }
 
+func (SQLiteDialect) NormalizeIdentifier(name string) string { return name }
+
 func (SQLiteDialect) QuoteIdentifier(name string) string {
 	return `"` + name + `"`
 }
