@@ -46,6 +46,11 @@ func NewTable(name string) *TableDef {
 	return &TableDef{Name: name}
 }
 
+// TableNameFor returns the table name normalized for the given dialect.
+func (t *TableDef) TableNameFor(d fraggle.Dialect) string {
+	return d.NormalizeIdentifier(t.Name)
+}
+
 // Columns appends column definitions.
 func (t *TableDef) Columns(cols ...ColumnDef) *TableDef {
 	t.cols = append(t.cols, cols...)
