@@ -302,10 +302,32 @@ func TestColumnDDL(t *testing.T) {
 		assert.NotContains(t, ddl, "gen_random_uuid")
 	})
 
+	t.Run("uuid_pk_mssql", func(t *testing.T) {
+		c := UUIDPKCol("ID")
+		ms := fraggle.MSSQLDialect{}
+		ddl := c.ddl(ms)
+		assert.Contains(t, ddl, "UNIQUEIDENTIFIER PRIMARY KEY")
+		assert.NotContains(t, ddl, "gen_random_uuid")
+	})
+
 	t.Run("uuid_pk_immutable", func(t *testing.T) {
 		c := UUIDPKCol("ID")
 		assert.True(t, c.pk)
 		assert.False(t, c.mutable)
+	})
+
+	t.Run("references_on_delete_sqlite", func(t *testing.T) {
+		c := Col("TaskID", TypeInt()).NotNull().References("Tasks", "ID").OnDelete("CASCADE")
+		sq := fraggle.SQLiteDialect{}
+		ddl := c.ddl(sq)
+		assert.Contains(t, ddl, `REFERENCES "Tasks"("ID") ON DELETE CASCADE`)
+	})
+
+	t.Run("references_on_delete_mssql", func(t *testing.T) {
+		c := Col("TaskID", TypeInt()).NotNull().References("Tasks", "ID").OnDelete("CASCADE").OnUpdate("SET NULL")
+		ms := fraggle.MSSQLDialect{}
+		ddl := c.ddl(ms)
+		assert.Contains(t, ddl, `REFERENCES [Tasks]([ID]) ON DELETE CASCADE ON UPDATE SET NULL`)
 	})
 }
 
