@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/catgoose/fraggle"
@@ -63,6 +64,45 @@ func TestValidateSchema(t *testing.T) {
 		errs := ValidateSchema(ctx, db, d, missing)
 		require.NotNil(t, errs)
 		assert.Contains(t, errs[0].Error(), "does not exist")
+	})
+
+	t.Run("nullability_mismatch", func(t *testing.T) {
+		// Declare Status as nullable, but it's NOT NULL in the DB
+		mismatch := NewTable("Items").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("Name", TypeString(255)).NotNull(),
+				Col("Status", TypeVarchar(50)), // missing .NotNull()
+			)
+
+		errs := ValidateSchema(ctx, db, d, mismatch)
+		require.NotNil(t, errs)
+
+		var found bool
+		for _, e := range errs {
+			if e.Column == "Status" && strings.Contains(e.Message, "nullability") {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected nullability mismatch for Status, got: %v", errs)
+	})
+
+	t.Run("extra_live_column", func(t *testing.T) {
+		// Declare fewer columns than exist in DB
+		fewer := NewTable("Items").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("Name", TypeString(255)).NotNull(),
+			)
+
+		errs := ValidateSchema(ctx, db, d, fewer)
+		require.NotNil(t, errs)
+
+		var messages []string
+		for _, e := range errs {
+			messages = append(messages, e.Error())
+		}
+		assert.Contains(t, messages, "Items.Status: unexpected column (exists in database but not in declaration)")
 	})
 
 	t.Run("missing_index", func(t *testing.T) {

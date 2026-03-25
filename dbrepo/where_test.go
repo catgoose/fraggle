@@ -236,4 +236,14 @@ func TestWhereNotArchivedBool(t *testing.T) {
 		w := NewWhere().WithDialect(fraggle.PostgresDialect{}).NotArchivedBool()
 		assert.Equal(t, "WHERE NOT archived", w.String())
 	})
+
+	t.Run("no_dialect_uses_not", func(t *testing.T) {
+		w := NewWhere().NotArchivedBool()
+		assert.Equal(t, "WHERE NOT archived", w.String())
+	})
+
+	t.Run("custom_column_with_dialect", func(t *testing.T) {
+		w := NewWhere().WithDialect(fraggle.MSSQLDialect{}).NotArchivedBool("is_archived")
+		assert.Equal(t, "WHERE is_archived = 0", w.String())
+	})
 }
