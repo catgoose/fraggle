@@ -108,6 +108,29 @@ func AutoIncrCol(name string) ColumnDef {
 	}
 }
 
+// TypeUUIDPK returns a TypeFunc for a UUID primary key column.
+// This embeds PRIMARY KEY in the type definition, similar to TypeAutoIncrement.
+func TypeUUIDPK() TypeFunc {
+	return func(d fraggle.Dialect) string {
+		if d.Engine() == fraggle.Postgres {
+			return "UUID PRIMARY KEY DEFAULT gen_random_uuid()"
+		}
+		return d.UUIDType() + " PRIMARY KEY"
+	}
+}
+
+// UUIDPKCol creates a UUID primary key column (immutable).
+// On Postgres this generates: id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+// On other engines it uses the engine's UUID type with PRIMARY KEY.
+func UUIDPKCol(name string) ColumnDef {
+	return ColumnDef{
+		name:    name,
+		typeFn:  TypeUUIDPK(),
+		pk:      true,
+		mutable: false,
+	}
+}
+
 // NotNull marks the column as NOT NULL.
 func (c ColumnDef) NotNull() ColumnDef { c.notNull = true; return c }
 
@@ -160,7 +183,9 @@ func (c ColumnDef) ddl(d fraggle.Dialect) string {
 	}
 
 	if c.defaultFn != nil {
-		parts = append(parts, fmt.Sprintf("DEFAULT %s", c.defaultFn(d)))
+		if v := c.defaultFn(d); v != "" {
+			parts = append(parts, fmt.Sprintf("DEFAULT %s", v))
+		}
 	} else if c.defaultVal != "" {
 		parts = append(parts, fmt.Sprintf("DEFAULT %s", c.defaultVal))
 	}

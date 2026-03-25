@@ -113,15 +113,72 @@ func TestValidateSchemaPostgresNormalization(t *testing.T) {
 	errs := ValidateSchema(ctx, db, d, table)
 	assert.Nil(t, errs)
 
-	// Verify Postgres normalization produces snake_case names
+	// Verify Postgres normalization produces snake_case names in Snapshot
 	pg := fraggle.PostgresDialect{}
 	snap := table.Snapshot(pg)
+	assert.Equal(t, "accounts", snap.Name)
 	assert.Equal(t, "email", snap.Columns[1].Name)
 	assert.Equal(t, "password_hash", snap.Columns[2].Name)
 
 	// TableNameFor should also normalize
 	assert.Equal(t, "accounts", table.TableNameFor(pg))
 	assert.Equal(t, "Accounts", table.TableNameFor(d))
+}
+
+func TestValidateSchemaIssue11Repro(t *testing.T) {
+	// Issue #11: ValidateSchema should normalize CamelCase column names through
+	// the dialect before comparing against the live database.
+	// On Postgres, DDL creates snake_case columns, so Snapshot must also
+	// produce snake_case names for the comparison to succeed.
+
+	pg := fraggle.PostgresDialect{}
+
+	// Define table with PascalCase names (how users define schemas)
+	table := NewTable("Accounts").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("Email", TypeVarchar(255)).NotNull(),
+			Col("PasswordHash", TypeText()).NotNull(),
+		).
+		WithTimestamps()
+
+	// Snapshot with Postgres dialect must normalize all names
+	snap := table.Snapshot(pg)
+	assert.Equal(t, "accounts", snap.Name)
+	assert.Equal(t, "id", snap.Columns[0].Name)
+	assert.Equal(t, "email", snap.Columns[1].Name)
+	assert.Equal(t, "password_hash", snap.Columns[2].Name)
+	assert.Equal(t, "created_at", snap.Columns[3].Name)
+	assert.Equal(t, "updated_at", snap.Columns[4].Name)
+
+	// SelectColumnsFor must also normalize
+	pgCols := table.SelectColumnsFor(pg)
+	assert.Equal(t, []string{"id", "email", "password_hash", "created_at", "updated_at"}, pgCols)
+
+	// InsertColumnsFor must normalize (excludes auto-increment)
+	pgInsert := table.InsertColumnsFor(pg)
+	assert.Equal(t, []string{"email", "password_hash", "created_at", "updated_at"}, pgInsert)
+
+	// UpdateColumnsFor must normalize (only mutable)
+	pgUpdate := table.UpdateColumnsFor(pg)
+	assert.Contains(t, pgUpdate, "email")
+	assert.Contains(t, pgUpdate, "password_hash")
+	assert.Contains(t, pgUpdate, "updated_at")
+	assert.NotContains(t, pgUpdate, "id")
+	assert.NotContains(t, pgUpdate, "created_at")
+
+	// End-to-end: validate with SQLite (which doesn't normalize) still works
+	// when table and columns match exactly
+	ctx := context.Background()
+	db := openTestDB(t)
+	d := fraggle.SQLiteDialect{}
+
+	for _, stmt := range table.CreateIfNotExistsSQL(d) {
+		_, err := db.ExecContext(ctx, stmt)
+		require.NoError(t, err)
+	}
+	errs := ValidateSchema(ctx, db, d, table)
+	assert.Nil(t, errs, "expected no errors, got: %v", errs)
 }
 
 func TestValidateAll(t *testing.T) {

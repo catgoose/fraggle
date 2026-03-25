@@ -5,17 +5,26 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/catgoose/fraggle"
 )
 
 // WhereBuilder constructs composable WHERE clauses with named parameters.
 type WhereBuilder struct {
 	clauses []string
 	args    []any
+	dialect fraggle.Dialect
 }
 
 // NewWhere creates a new WhereBuilder.
 func NewWhere() *WhereBuilder {
 	return &WhereBuilder{}
+}
+
+// WithDialect sets the dialect for dialect-aware operations (e.g. ILIKE on Postgres).
+func (w *WhereBuilder) WithDialect(d fraggle.Dialect) *WhereBuilder {
+	w.dialect = d
+	return w
 }
 
 // And adds an AND condition with optional named args.
@@ -61,6 +70,7 @@ func (w *WhereBuilder) OrIf(ok bool, condition string, args ...any) *WhereBuilde
 var validIdentifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
 
 // Search adds a LIKE search condition across the given fields.
+// When a dialect is set via WithDialect, Postgres uses ILIKE for case-insensitive matching.
 // Field names are validated to prevent SQL injection — only alphanumeric characters,
 // underscores, and dots (for qualified names) are allowed.
 func (w *WhereBuilder) Search(search string, fields ...string) *WhereBuilder {
@@ -68,12 +78,16 @@ func (w *WhereBuilder) Search(search string, fields ...string) *WhereBuilder {
 		return w
 	}
 	pattern := "%" + search + "%"
+	op := "LIKE"
+	if w.dialect != nil && w.dialect.Engine() == fraggle.Postgres {
+		op = "ILIKE"
+	}
 	var conditions []string
 	for _, field := range fields {
 		if !validIdentifier.MatchString(field) {
 			continue
 		}
-		conditions = append(conditions, fmt.Sprintf("%s LIKE @SearchPattern", field))
+		conditions = append(conditions, fmt.Sprintf("%s %s @SearchPattern", field, op))
 	}
 	if len(conditions) == 0 {
 		return w
@@ -161,6 +175,17 @@ func (w *WhereBuilder) ReplacedBy(id int64, col ...string) *WhereBuilder {
 // Pass an optional column name to override the default "ArchivedAt".
 func (w *WhereBuilder) NotArchived(col ...string) *WhereBuilder {
 	return w.And(colName("ArchivedAt", col) + " IS NULL")
+}
+
+// NotArchivedBool adds a condition for boolean archived columns.
+// Generates "NOT archived" for Postgres/SQLite, "archived = 0" for MSSQL.
+// Pass an optional column name to override the default "archived".
+func (w *WhereBuilder) NotArchivedBool(col ...string) *WhereBuilder {
+	c := colName("archived", col)
+	if w.dialect != nil && w.dialect.Engine() == fraggle.MSSQL {
+		return w.And(c + " = 0")
+	}
+	return w.And("NOT " + c)
 }
 
 // HasVersion adds a "Version = @Version" condition for optimistic locking.

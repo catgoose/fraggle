@@ -26,7 +26,7 @@ func TestSnapshot(t *testing.T) {
 	t.Run("struct_fields", func(t *testing.T) {
 		snap := table.Snapshot(fraggle.PostgresDialect{})
 
-		assert.Equal(t, "Tasks", snap.Name)
+		assert.Equal(t, "tasks", snap.Name)
 		assert.True(t, snap.HasSoftDelete)
 		assert.True(t, snap.HasVersion)
 		require.Len(t, snap.Columns, 7) // ID, Title, UserID, CreatedAt, UpdatedAt, DeletedAt, Version
@@ -88,7 +88,7 @@ func TestSnapshotString(t *testing.T) {
 
 	s := table.SnapshotString(fraggle.PostgresDialect{})
 
-	assert.Contains(t, s, "TABLE Users")
+	assert.Contains(t, s, "TABLE users")
 	assert.Contains(t, s, "id")
 	assert.Contains(t, s, "PRIMARY KEY")
 	assert.Contains(t, s, "email")
@@ -148,6 +148,6 @@ func TestSchemaSnapshot(t *testing.T) {
 
 	snaps := SchemaSnapshot(fraggle.PostgresDialect{}, users, tasks)
 	require.Len(t, snaps, 2)
-	assert.Equal(t, "Users", snaps[0].Name)
-	assert.Equal(t, "Tasks", snaps[1].Name)
+	assert.Equal(t, "users", snaps[0].Name)
+	assert.Equal(t, "tasks", snaps[1].Name)
 }

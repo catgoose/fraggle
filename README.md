@@ -142,6 +142,16 @@ for _, stmt := range stmts {
 }
 ```
 
+### UUID Primary Keys
+
+For Postgres apps using UUID primary keys:
+
+```go
+schema.UUIDPKCol("id")
+// Postgres: id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+// SQLite:   id TEXT PRIMARY KEY
+```
+
 ### Foreign Key References
 
 `References` defines a foreign key. Chain `OnDelete` and `OnUpdate` for referential actions:
@@ -352,18 +362,25 @@ query := "SELECT * FROM Users " + w.String()
 // "SELECT * FROM Users WHERE DepartmentID = @DeptID AND Name LIKE @Pattern"
 ```
 
+Set a dialect for dialect-aware behavior (e.g. ILIKE on Postgres):
+
+```go
+w := dbrepo.NewWhere().WithDialect(dialect)
+```
+
 Semantic filter methods encode domain patterns. Each accepts an optional column name override for custom naming:
 
 ```go
-w := dbrepo.NewWhere().
+w := dbrepo.NewWhere().WithDialect(dialect).
     NotDeleted().                  // DeletedAt IS NULL
-    NotArchived().                 // ArchivedAt IS NULL
+    NotArchived().                 // ArchivedAt IS NULL (timestamp column)
+    NotArchivedBool().             // NOT archived (boolean column)
     NotExpired().                  // ExpiresAt IS NULL OR ExpiresAt > CURRENT_TIMESTAMP
     HasStatus("active").           // Status = @Status
     HasVersion(3).                 // Version = @Version
     IsRoot().                      // ParentID IS NULL
     NotReplaced().                 // ReplacedByID IS NULL
-    Search("fraggle", "Name", "Bio")  // (Name LIKE @SearchPattern OR Bio LIKE @SearchPattern)
+    Search("fraggle", "Name", "Bio")  // Postgres: ILIKE, others: LIKE
 
 // Snake-case schemas: pass the column name
 w := dbrepo.NewWhere().

@@ -3,6 +3,7 @@ package dbrepo
 import (
 	"testing"
 
+	"github.com/catgoose/fraggle"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -195,5 +196,44 @@ func TestWhereSearch(t *testing.T) {
 		w := NewWhere().Search("gobo", "t.Name", "u.Email")
 		assert.Contains(t, w.String(), "t.Name LIKE @SearchPattern")
 		assert.Contains(t, w.String(), "u.Email LIKE @SearchPattern")
+	})
+
+	t.Run("postgres_uses_ilike", func(t *testing.T) {
+		w := NewWhere().WithDialect(fraggle.PostgresDialect{}).Search("gobo", "Name", "Email")
+		assert.Contains(t, w.String(), "Name ILIKE @SearchPattern")
+		assert.Contains(t, w.String(), "Email ILIKE @SearchPattern")
+		assert.NotContains(t, w.String(), " LIKE ")
+	})
+
+	t.Run("sqlite_uses_like", func(t *testing.T) {
+		w := NewWhere().WithDialect(fraggle.SQLiteDialect{}).Search("gobo", "Name")
+		assert.Contains(t, w.String(), "Name LIKE @SearchPattern")
+	})
+
+	t.Run("no_dialect_uses_like", func(t *testing.T) {
+		w := NewWhere().Search("gobo", "Name")
+		assert.Contains(t, w.String(), "Name LIKE @SearchPattern")
+	})
+}
+
+func TestWhereNotArchivedBool(t *testing.T) {
+	t.Run("default_column", func(t *testing.T) {
+		w := NewWhere().NotArchivedBool()
+		assert.Equal(t, "WHERE NOT archived", w.String())
+	})
+
+	t.Run("custom_column", func(t *testing.T) {
+		w := NewWhere().NotArchivedBool("is_archived")
+		assert.Equal(t, "WHERE NOT is_archived", w.String())
+	})
+
+	t.Run("mssql_uses_equals_zero", func(t *testing.T) {
+		w := NewWhere().WithDialect(fraggle.MSSQLDialect{}).NotArchivedBool()
+		assert.Equal(t, "WHERE archived = 0", w.String())
+	})
+
+	t.Run("postgres_uses_not", func(t *testing.T) {
+		w := NewWhere().WithDialect(fraggle.PostgresDialect{}).NotArchivedBool()
+		assert.Equal(t, "WHERE NOT archived", w.String())
 	})
 }
