@@ -195,6 +195,7 @@ Common table patterns have factory functions:
 schema.NewMappingTable("UserRoles", "UserID", "RoleID")     // Many-to-many join table
 schema.NewConfigTable("Settings", "Key", "Value")            // Key-value config
 schema.NewLookupTable("Options", "Category", "Label")        // Lookup with grouping
+schema.NewLookupJoinTable("TaskOptions")                      // Owner-to-lookup join table
 schema.NewEventTable("AuditLog", cols...)                     // Append-only (all immutable)
 schema.NewQueueTable("Jobs", "Payload")                       // Job queue with scheduling
 ```
