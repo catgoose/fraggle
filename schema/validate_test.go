@@ -72,7 +72,7 @@ func TestValidateSchema(t *testing.T) {
 			Columns(
 				AutoIncrCol("ID"),
 				Col("Name", TypeString(255)).NotNull(),
-				Col("Status", TypeVarchar(50)), // missing .NotNull()
+				Col("Status", TypeVarchar(50)),
 			)
 
 		errs := ValidateSchema(ctx, db, d, mismatch)
