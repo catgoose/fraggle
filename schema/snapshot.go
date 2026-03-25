@@ -46,7 +46,7 @@ type TableSnapshot struct {
 // for CI validation.
 func (t *TableDef) Snapshot(d fraggle.Dialect) TableSnapshot {
 	snap := TableSnapshot{
-		Name:          t.Name,
+		Name:          d.NormalizeIdentifier(t.Name),
 		HasSoftDelete: t.hasSoftDelete,
 		HasVersion:    t.hasVersion,
 		HasExpiry:     t.hasExpiry,

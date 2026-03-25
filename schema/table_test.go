@@ -287,6 +287,26 @@ func TestColumnDDL(t *testing.T) {
 		assert.Contains(t, ddl, "id")
 		assert.Contains(t, ddl, "SERIAL PRIMARY KEY")
 	})
+
+	t.Run("uuid_pk_postgres", func(t *testing.T) {
+		c := UUIDPKCol("ID")
+		ddl := c.ddl(d)
+		assert.Contains(t, ddl, "UUID PRIMARY KEY DEFAULT gen_random_uuid()")
+	})
+
+	t.Run("uuid_pk_sqlite", func(t *testing.T) {
+		c := UUIDPKCol("ID")
+		sq := fraggle.SQLiteDialect{}
+		ddl := c.ddl(sq)
+		assert.Contains(t, ddl, "TEXT PRIMARY KEY")
+		assert.NotContains(t, ddl, "gen_random_uuid")
+	})
+
+	t.Run("uuid_pk_immutable", func(t *testing.T) {
+		c := UUIDPKCol("ID")
+		assert.True(t, c.pk)
+		assert.False(t, c.mutable)
+	})
 }
 
 func TestTableFactories(t *testing.T) {
