@@ -93,6 +93,20 @@ d.InsertOrIgnore("users", "name, email", "'Alice', 'alice@test.com'")
 
 `InsertOrIgnore` produces idempotent inserts: `INSERT OR IGNORE` (SQLite), `ON CONFLICT DO NOTHING` (Postgres), or `BEGIN TRY...END CATCH` (MSSQL).
 
+`ReturningClause` generates a `RETURNING` clause for INSERT/UPDATE statements (supported by Postgres and SQLite 3.35+, empty on MSSQL):
+
+```go
+d.ReturningClause("id")              // Postgres: "RETURNING id"
+d.ReturningClause("id, created_at")  // SQLite:   "RETURNING id, created_at"
+```
+
+`QuoteColumns` splits a comma-separated column list, normalizes and quotes each identifier, preserving sort direction suffixes:
+
+```go
+fraggle.QuoteColumns(d, "CreatedAt, Title DESC")
+// Postgres: "created_at", "title" DESC
+```
+
 ## Opening Connections
 
 ```go
@@ -361,6 +375,15 @@ w := dbrepo.NewWhere().
 
 query := "SELECT * FROM Users " + w.String()
 // "SELECT * FROM Users WHERE DepartmentID = @DeptID AND Name LIKE @Pattern"
+```
+
+`Or` and `OrIf` add OR branches:
+
+```go
+w := dbrepo.NewWhere().
+    And("Status = @Status", sql.Named("Status", "active")).
+    Or("Status = @Status2", sql.Named("Status2", "pending"))
+// WHERE Status = @Status OR Status = @Status2
 ```
 
 Set a dialect for dialect-aware behavior (e.g. ILIKE on Postgres):
