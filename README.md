@@ -551,6 +551,12 @@ For deterministic tests, override the clock:
 dbrepo.NowFunc = func() time.Time { return fixedTime }
 ```
 
+> Student ask Grug about complexity. Grug say: "complexity is apex predator." Student say: "how do I defeat the complexity?" Grug say: "no."
+>
+> -- Layman Grug
+
+Fraggle says "no" to the complexity of maintaining separate DDL strings per dialect. One schema definition. All dialects generated.
+
 ## Engines
 
 | Engine | Constant | Driver Package |
@@ -558,6 +564,12 @@ dbrepo.NowFunc = func() time.Time { return fixedTime }
 | PostgreSQL | `fraggle.Postgres` | `fraggle/driver/postgres` |
 | SQLite | `fraggle.SQLite` | `fraggle/driver/sqlite` |
 | MSSQL | `fraggle.MSSQL` | `fraggle/driver/mssql` |
+
+> A media type is a COVENANT. A sacred compact. A pinky promise between systems.
+>
+> -- The Wisdom of the Uniform Interface
+
+A schema definition is the same kind of covenant — between your application and your database. Fraggle makes that covenant explicit, testable, and diffable.
 
 ## Testing
 
