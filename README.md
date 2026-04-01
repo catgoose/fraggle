@@ -598,31 +598,33 @@ Fraggle follows Go's values and the [dothog design philosophy](https://github.co
 
 ## Architecture
 
-### Where fraggle fits in the dothog ecosystem
-
 ```
-                        ┌──────────────────────────────────────┐
-                        │              dothog app              │
-                        └──────────┬───────────────────────────┘
-                                   │
-          ┌────────────┬───────────┼───────────┬────────────┐
-          │            │           │           │            │
-     ┌────v────┐  ┌────v────┐ ┌───v────┐  ┌───v────┐  ┌───v─────┐
-     │ crooner │  │ porter  │ │*fraggle*│  │ tavern │  │promolog │
-     │  auth   │  │  authz  │ │  sql   │  │  sse   │  │  logs   │
-     └─────────┘  └─────────┘ └───┬────┘  └────────┘  └─────────┘
-                                  │
-                    ┌─────────────┼─────────────┐
-                    │             │             │
-               ┌────v────┐  ┌────v────┐  ┌────v────┐
-               │ SQLite  │  │Postgres │  │  MSSQL  │
-               └─────────┘  └─────────┘  └─────────┘
+  ┌─────────────────────────────────────────────────┐
+  │                  your application                │
+  │                                                 │
+  │  schema.NewTable("Tasks")     dbrepo.NewWhere() │
+  │        │                            │           │
+  └────────┼────────────────────────────┼───────────┘
+           │                            │
+           v                            v
+  ┌─────────────────────────────────────────────────┐
+  │                    fraggle                       │
+  │                                                 │
+  │  Dialect interface                              │
+  │  ┌──────────┬──────────┬──────────┐             │
+  │  │TypeMapper│DDLWriter │QueryWriter│             │
+  │  │Identifier│Inspector │          │             │
+  │  └──────────┴──────────┴──────────┘             │
+  └────────┬───────────┬───────────┬────────────────┘
+           │           │           │
+      ┌────v────┐ ┌────v────┐ ┌───v─────┐
+      │ SQLite  │ │Postgres │ │  MSSQL  │
+      └─────────┘ └─────────┘ └─────────┘
 ```
 
-Fraggle sits between your application logic and the database. Handlers use
-fraggle's schema definitions and query helpers — fraggle generates the correct
-SQL for whichever dialect you're running. The app never writes raw
-dialect-specific DDL.
+One schema definition at the top, dialect-specific SQL at the bottom. Fraggle
+generates DDL, column lists, seed data, and query fragments for whichever
+engine you're running.
 
 ## License
 
