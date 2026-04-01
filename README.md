@@ -9,6 +9,51 @@ Fraggle is a multi-dialect SQL fragment system for Go. Like the Fraggles explori
 
 No ORM, no query builder magic — just explicit SQL fragments, composable schema definitions, and domain patterns as primitives.
 
+## Why
+
+**Without fraggle:**
+
+```go
+// One table. Three dialects. Three separate DDL strings.
+const createTasksSQLite = `CREATE TABLE IF NOT EXISTS Tasks (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Title TEXT NOT NULL,
+    Description TEXT,
+    DeletedAt TIMESTAMP,
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`
+const createTasksPostgres = `CREATE TABLE IF NOT EXISTS "tasks" (
+    "id" SERIAL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "deleted_at" TIMESTAMPTZ,
+    "created_at" TIMESTAMPTZ DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ DEFAULT NOW()
+)`
+// Now maintain column lists for SELECT, INSERT, UPDATE -- per dialect.
+// Add a column? Update six places.
+```
+
+**With fraggle:**
+
+```go
+var TasksTable = schema.NewTable("Tasks").
+    Columns(
+        schema.AutoIncrCol("ID"),
+        schema.Col("Title", schema.TypeString(255)).NotNull(),
+        schema.Col("Description", schema.TypeText()),
+    ).
+    WithTimestamps().
+    WithSoftDelete()
+
+// Generate DDL for any dialect
+for _, stmt := range TasksTable.CreateIfNotExistsSQL(dialect) {
+    db.Exec(stmt)
+}
+// Column lists come free: TasksTable.InsertColumnsFor(dialect)
+```
+
 ## Install
 
 ```bash
