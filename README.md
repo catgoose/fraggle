@@ -11,6 +11,10 @@ No ORM, no query builder magic — just explicit SQL fragments, composable schem
 
 ## Why
 
+> Big Brain Developer say "it renders a table of users."
+>
+> -- Layman Grug, Dothog Manifesto
+
 **Without fraggle:**
 
 ```go
@@ -81,6 +85,10 @@ d.Pagination()     // "LIMIT @Limit OFFSET @Offset"
 d.Now()            // "NOW()"
 d.Placeholder(1)   // "$1"
 ```
+
+> grug not understand why other developer make thing so hard. grug supernatural power and marvelous activity: returning html and carrying single binary.
+>
+> -- Layman Grug, Dothog Manifesto
 
 Each engine speaks its own dialect:
 
@@ -174,6 +182,10 @@ db, dialect, _ := fraggle.OpenSQLite(ctx, "path/to/app.db")
 ```
 
 ## Schema as Code
+
+> THE FOOL asked: "What is a representation?" ... unlike a photograph, a representation carries CONTROLS. Instructions. Affordances.
+>
+> -- The Wisdom of the Uniform Interface, Dothog Manifesto
 
 The `schema` package defines tables in Go. One declaration drives DDL generation, column lists, seed data, and schema snapshots.
 
