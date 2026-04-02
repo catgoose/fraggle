@@ -5,7 +5,7 @@
 
 ![fraggle](https://raw.githubusercontent.com/catgoose/screenshots/main/fraggle/fraggle.png)
 
-Fraggle is a multi-dialect SQL fragment system for Go. Like the Fraggles exploring different caves in the Rock, Fraggle lets your queries travel between SQLite, PostgreSQL, and MSSQL without getting lost.
+Fraggle is a multi-dialect SQL fragment system for Go. One schema definition works across SQLite, PostgreSQL, and MSSQL.
 
 No ORM, no query builder magic — just explicit SQL fragments, composable schema definitions, and domain patterns as primitives.
 
@@ -594,7 +594,6 @@ Fraggle follows Go's values and the [dothog design philosophy](https://github.co
 - **Domain patterns as primitives.** Soft delete, optimistic locking, archival — these aren't framework features. They're small functions that set timestamps and check values. If you need soft delete, call `SetSoftDelete`. If you don't, don't.
 - **A little copying is better than a little dependency.** The Go standard library is the dependency. Everything else earns its place.
 
-*"A Fraggle is never lost. A Fraggle is just exploring."*
 
 ## Architecture
 
