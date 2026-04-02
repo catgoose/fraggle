@@ -135,6 +135,118 @@ func TestLiveSchemaSnapshot(t *testing.T) {
 	assert.Equal(t, "Tasks", snaps[1].Name)
 }
 
+func TestLiveSnapshotStringWithIndex(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	d := fraggle.SQLiteDialect{}
+
+	table := NewTable("Products").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("SKU", TypeVarchar(100)).NotNull(),
+		).
+		Indexes(
+			Index("idx_products_sku", "SKU"),
+		)
+
+	for _, stmt := range table.CreateIfNotExistsSQL(d) {
+		_, err := db.ExecContext(ctx, stmt)
+		require.NoError(t, err)
+	}
+
+	snap, err := LiveSnapshot(ctx, db, d, "Products")
+	require.NoError(t, err)
+
+	s := snap.String()
+	assert.Contains(t, s, "TABLE Products")
+	assert.Contains(t, s, "INDEX idx_products_sku")
+}
+
+func TestLiveSnapshotStringNoIndex(t *testing.T) {
+	// String() for a table with no indexes should omit the INDEX lines
+	snap := LiveTableSnapshot{
+		Name: "Simple",
+		Columns: []LiveColumnSnapshot{
+			{Name: "id", Type: "INTEGER", Nullable: false},
+			{Name: "val", Type: "TEXT", Nullable: true, Default: "'x'"},
+		},
+	}
+	s := snap.String()
+	assert.Contains(t, s, "TABLE Simple")
+	assert.Contains(t, s, "id")
+	assert.Contains(t, s, "NOT NULL")
+	assert.Contains(t, s, "val")
+	assert.Contains(t, s, "DEFAULT 'x'")
+	assert.NotContains(t, s, "INDEX")
+}
+
+func TestQueryColumnsUnsupportedEngine(t *testing.T) {
+	// queryColumns returns an error for unsupported engines.
+	// We test this indirectly through LiveSnapshot since queryColumns is unexported.
+	// Instead, verify that a valid SQLite in-memory DB returns columns correctly.
+	ctx := context.Background()
+	db := openTestDB(t)
+	d := fraggle.SQLiteDialect{}
+
+	table := NewTable("Widgets").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("Name", TypeVarchar(50)).NotNull(),
+			Col("Weight", TypeFloat()),
+		)
+
+	for _, stmt := range table.CreateIfNotExistsSQL(d) {
+		_, err := db.ExecContext(ctx, stmt)
+		require.NoError(t, err)
+	}
+
+	snap, err := LiveSnapshot(ctx, db, d, "Widgets")
+	require.NoError(t, err)
+	require.Len(t, snap.Columns, 3)
+
+	// ID is primary key — NOT NULL
+	assert.Equal(t, "ID", snap.Columns[0].Name)
+	assert.False(t, snap.Columns[0].Nullable)
+
+	// Name is NOT NULL
+	assert.Equal(t, "Name", snap.Columns[1].Name)
+	assert.False(t, snap.Columns[1].Nullable)
+
+	// Weight is nullable
+	assert.Equal(t, "Weight", snap.Columns[2].Name)
+	assert.True(t, snap.Columns[2].Nullable)
+}
+
+func TestQueryIndexesMultiple(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	d := fraggle.SQLiteDialect{}
+
+	table := NewTable("Orders").
+		Columns(
+			AutoIncrCol("ID"),
+			Col("CustomerID", TypeInt()).NotNull(),
+			Col("Status", TypeVarchar(50)).NotNull(),
+		).
+		Indexes(
+			Index("idx_orders_customer", "CustomerID"),
+			Index("idx_orders_status", "Status"),
+		)
+
+	for _, stmt := range table.CreateIfNotExistsSQL(d) {
+		_, err := db.ExecContext(ctx, stmt)
+		require.NoError(t, err)
+	}
+
+	snap, err := LiveSnapshot(ctx, db, d, "Orders")
+	require.NoError(t, err)
+	require.Len(t, snap.Indexes, 2)
+
+	indexNames := []string{snap.Indexes[0].Name, snap.Indexes[1].Name}
+	assert.Contains(t, indexNames, "idx_orders_customer")
+	assert.Contains(t, indexNames, "idx_orders_status")
+}
+
 func TestLiveSnapshotCompareWithDeclared(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

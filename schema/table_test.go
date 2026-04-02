@@ -399,6 +399,110 @@ func TestTableFactories(t *testing.T) {
 	})
 }
 
+func TestColumnDefMethods(t *testing.T) {
+	t.Run("PrimaryKey", func(t *testing.T) {
+		c := Col("ID", TypeInt())
+		assert.False(t, c.pk)
+		c2 := c.PrimaryKey()
+		assert.True(t, c2.pk)
+		// original unchanged
+		assert.False(t, c.pk)
+	})
+
+	t.Run("Mutable_toggle", func(t *testing.T) {
+		// Col creates mutable by default
+		c := Col("Name", TypeVarchar(255))
+		assert.True(t, c.mutable)
+
+		// Immutable turns it off
+		c2 := c.Immutable()
+		assert.False(t, c2.mutable)
+
+		// Mutable() turns it back on
+		c3 := c2.Mutable()
+		assert.True(t, c3.mutable)
+
+		// AutoIncrCol is immutable by default
+		autoC := AutoIncrCol("ID")
+		assert.False(t, autoC.mutable)
+
+		// Mutable() makes it mutable
+		autoC2 := autoC.Mutable()
+		assert.True(t, autoC2.mutable)
+	})
+
+	t.Run("Name", func(t *testing.T) {
+		c := Col("Email", TypeVarchar(255))
+		assert.Equal(t, "Email", c.Name())
+
+		c2 := AutoIncrCol("UserID")
+		assert.Equal(t, "UserID", c2.Name())
+
+		c3 := UUIDPKCol("RowID")
+		assert.Equal(t, "RowID", c3.Name())
+	})
+}
+
+func TestCreateSQL(t *testing.T) {
+	t.Run("basic_sqlite", func(t *testing.T) {
+		table := NewTable("Notes").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("Body", TypeText()).NotNull(),
+			)
+		d := fraggle.SQLiteDialect{}
+		stmts := table.CreateSQL(d)
+		require.Len(t, stmts, 1) // no indexes
+		assert.Contains(t, stmts[0], "CREATE TABLE")
+		assert.Contains(t, stmts[0], `"Notes"`)
+		assert.Contains(t, stmts[0], `"ID"`)
+		assert.Contains(t, stmts[0], `"Body"`)
+		assert.Contains(t, stmts[0], "NOT NULL")
+	})
+
+	t.Run("with_indexes", func(t *testing.T) {
+		table := NewTable("Articles").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("Title", TypeVarchar(255)).NotNull(),
+			).
+			Indexes(
+				Index("idx_articles_title", "Title"),
+			)
+		d := fraggle.SQLiteDialect{}
+		stmts := table.CreateSQL(d)
+		require.Len(t, stmts, 2)
+		assert.Contains(t, stmts[0], "CREATE TABLE")
+		assert.Contains(t, stmts[1], "idx_articles_title")
+	})
+
+	t.Run("postgres_normalizes_names", func(t *testing.T) {
+		table := NewTable("MyTable").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("MyColumn", TypeInt()).NotNull(),
+			)
+		d := fraggle.PostgresDialect{}
+		stmts := table.CreateSQL(d)
+		require.Len(t, stmts, 1)
+		assert.Contains(t, stmts[0], "my_table")
+		assert.Contains(t, stmts[0], "my_column")
+	})
+
+	t.Run("mssql", func(t *testing.T) {
+		table := NewTable("Docs").
+			Columns(
+				AutoIncrCol("ID"),
+				Col("Content", TypeText()),
+			)
+		d := fraggle.MSSQLDialect{}
+		stmts := table.CreateSQL(d)
+		require.Len(t, stmts, 1)
+		assert.Contains(t, stmts[0], "CREATE TABLE")
+		assert.Contains(t, stmts[0], "[Docs]")
+	})
+}
+
 func TestTypeFuncs(t *testing.T) {
 	d := fraggle.PostgresDialect{}
 

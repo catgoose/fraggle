@@ -116,6 +116,50 @@ func TestOpenSQLiteConnectionPool(t *testing.T) {
 	assert.Equal(t, 1, stats.MaxOpenConnections)
 }
 
+func TestOpenURLSQLite3Prefix(t *testing.T) {
+	// Test sqlite3:// prefix is also recognized
+	ctx := context.Background()
+	db, d, err := OpenURL(ctx, "sqlite3://:memory:")
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	assert.Equal(t, SQLite, d.Engine())
+	assert.NoError(t, db.PingContext(ctx))
+}
+
+func TestOpenURLSQLiteEmptyPath(t *testing.T) {
+	ctx := context.Background()
+	_, _, err := OpenURL(ctx, "sqlite://")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty sqlite path")
+}
+
+func TestOpenURLPostgresSchemeNotPingable(t *testing.T) {
+	// postgres:// scheme should be recognized (not "unsupported"), but fail at ping.
+	ctx := context.Background()
+	_, _, err := OpenURL(ctx, "postgres://user:pass@localhost:5432/db?sslmode=disable")
+	require.Error(t, err)
+	// Should fail at ping, not at scheme detection
+	assert.NotContains(t, err.Error(), "unsupported database scheme")
+}
+
+func TestOpenURLSQLServerSchemeNotPingable(t *testing.T) {
+	// sqlserver:// scheme should be recognized, but fail at ping.
+	ctx := context.Background()
+	_, _, err := OpenURL(ctx, "sqlserver://user:pass@localhost:1433?database=db")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "unsupported database scheme")
+}
+
+func TestOpenSQLiteInvalidPath(t *testing.T) {
+	// Attempt to open a path in a directory we can't create (read-only root path).
+	// Instead, verify OpenSQLite fails gracefully when MkdirAll fails.
+	// On Linux, writing to /proc/invalid is not possible.
+	ctx := context.Background()
+	_, _, err := OpenSQLite(ctx, "/proc/fraggle_test_invalid_dir/test.db")
+	require.Error(t, err)
+}
+
 func TestOpenSQLiteReturnsDialect(t *testing.T) {
 	ctx := context.Background()
 	db, d, err := OpenSQLite(ctx, ":memory:")
