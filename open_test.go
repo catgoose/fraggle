@@ -135,7 +135,7 @@ func TestOpenURLSQLiteEmptyPath(t *testing.T) {
 }
 
 func TestOpenURLPostgresSchemeNotPingable(t *testing.T) {
-	// postgres:// scheme should be recognized (not "unsupported"), but fail at ping.
+	// Verifies that the postgres scheme is recognized and fails at ping, not at scheme detection.
 	ctx := context.Background()
 	_, _, err := OpenURL(ctx, "postgres://user:pass@localhost:5432/db?sslmode=disable")
 	require.Error(t, err)
@@ -144,7 +144,7 @@ func TestOpenURLPostgresSchemeNotPingable(t *testing.T) {
 }
 
 func TestOpenURLSQLServerSchemeNotPingable(t *testing.T) {
-	// sqlserver:// scheme should be recognized, but fail at ping.
+	// Verifies that the sqlserver scheme is recognized and fails at ping, not at scheme detection.
 	ctx := context.Background()
 	_, _, err := OpenURL(ctx, "sqlserver://user:pass@localhost:1433?database=db")
 	require.Error(t, err)
