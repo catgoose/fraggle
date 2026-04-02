@@ -1,4 +1,4 @@
-# Fraggle
+# fraggle
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/catgoose/fraggle.svg)](https://pkg.go.dev/github.com/catgoose/fraggle)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
