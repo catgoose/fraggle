@@ -1,11 +1,11 @@
 module github.com/catgoose/fraggle
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/lib/pq v1.12.3
-	github.com/mattn/go-sqlite3 v1.14.44
+	github.com/mattn/go-sqlite3 v1.14.45
 	github.com/stretchr/testify v1.11.1
 )
 
